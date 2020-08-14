@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29709.97
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GMLtoOBJ", "GMLtoOBJ.csproj", "{BBB99EB0-D72F-4193-BC7E-32561A0D3533}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BBB99EB0-D72F-4193-BC7E-32561A0D3533}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBB99EB0-D72F-4193-BC7E-32561A0D3533}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBB99EB0-D72F-4193-BC7E-32561A0D3533}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBB99EB0-D72F-4193-BC7E-32561A0D3533}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {344DD2A9-6F81-41BB-8508-129CD2517ABC}
+	EndGlobalSection
+EndGlobal

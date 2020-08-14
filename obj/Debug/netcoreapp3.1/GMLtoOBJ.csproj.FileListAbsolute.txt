@@ -1,0 +1,13 @@
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.exe
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.deps.json
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.runtimeconfig.json
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.runtimeconfig.dev.json
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\GMLtoOBJ.pdb
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.csprojAssemblyReference.cache
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.AssemblyInfoInputs.cache
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.AssemblyInfo.cs
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.pdb
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\Triangle.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.csproj.CopyComplete
