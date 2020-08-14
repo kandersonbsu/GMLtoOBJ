@@ -21,10 +21,12 @@ namespace GMLtoOBJ
         public string fp_source;
         public double measuredHeight;
         public List<Polygon> sides;
+        public Dictionary<Polygon, TriangleNet.Geometry.Polygon> threeDtoTwoD;
         public Building(string id)
         {
             this.id = id;
             sides = new List<Polygon>();
+            threeDtoTwoD = new Dictionary<Polygon, TriangleNet.Geometry.Polygon>();
         }
 
         public void Build(XElement child)
