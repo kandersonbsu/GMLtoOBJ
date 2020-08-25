@@ -1,23 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\kanderson\\Desktop\\GMLtoOBJ\\GMLtoOBJ.csproj": {}
+    "C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\GMLtoOBJ.csproj": {}
   },
   "projects": {
-    "C:\\Users\\kanderson\\Desktop\\GMLtoOBJ\\GMLtoOBJ.csproj": {
+    "C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\GMLtoOBJ.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\kanderson\\Desktop\\GMLtoOBJ\\GMLtoOBJ.csproj",
+        "projectUniqueName": "C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\GMLtoOBJ.csproj",
         "projectName": "GMLtoOBJ",
-        "projectPath": "C:\\Users\\kanderson\\Desktop\\GMLtoOBJ\\GMLtoOBJ.csproj",
-        "packagesPath": "C:\\Users\\kanderson\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\kanderson\\Desktop\\GMLtoOBJ\\obj\\",
+        "projectPath": "C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\GMLtoOBJ.csproj",
+        "packagesPath": "C:\\Users\\Kyle\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
-        ],
         "configFilePaths": [
-          "C:\\Users\\kanderson\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\Kyle\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -55,7 +52,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\3.1.401\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\3.1.101\\RuntimeIdentifierGraph.json"
         }
       }
     }

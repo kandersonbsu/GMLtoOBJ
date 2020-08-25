@@ -6,6 +6,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="CoordinateSystems">
+      <HintPath>bin\Debug\CoordinateSystems.dll</HintPath>
+    </Reference>
+    <Reference Include="DelaunatorSharp">
+      <HintPath>bin\Debug\DelaunatorSharp.dll</HintPath>
+    </Reference>
     <Reference Include="Triangle">
       <HintPath>bin\Debug\Triangle.dll</HintPath>
     </Reference>

@@ -26,3 +26,5 @@ C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.csproj.Copy
 C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.dll
 C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.pdb
 C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.genruntimeconfig.cache
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\DelaunatorSharp.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\CoordinateSystems.dll

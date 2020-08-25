@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml;
+using System.Numerics;
 using System.Xml.Linq;
-using TriangleNet;
+using DelaunatorSharp;
+using Cognitics.CoordinateSystems;
 
 namespace GMLtoOBJ
 {
@@ -48,126 +50,266 @@ namespace GMLtoOBJ
                         }
                     }
                 }
-                BuildingtoOBJ(buildings);
+                BuildingtoOBJ(buildings, path);
             }
         }
 
-        static void BuildingtoOBJ(List<Building> buildings)
+        static bool IsInPolygon(IPoint[] polygon, IPoint point)
         {
-            foreach(Building b in buildings)
+            IPoint p1, p2;
+            bool inside = false;
+
+            if (polygon.Length < 3)
+                return false;
+
+            var oldPoint = new Point(polygon[polygon.Length - 1].X, polygon[polygon.Length - 1].Y);
+
+            for(int i = 0; i < polygon.Length; ++i)
             {
-                foreach(Polygon p in b.sides)
+                var newPoint = new Point(polygon[i].X, polygon[i].Y);
+
+                if(newPoint.X > oldPoint.X)
                 {
-                    var matrix = PolygonToMatrix(p);
-                    int rank = rankOfMatrix(matrix, 3, p.vertices.Count / 3);
+                    p1 = oldPoint;
+                    p2 = newPoint;
                 }
-            }
-        }
-
-        static double[,] PolygonToMatrix(Polygon p)
-        {
-            double[,] retVal = new double[3, p.vertices.Count / 3];
-            int r = 0;
-            int c = 0;
-            foreach(double d in p.vertices)
-            {
-                retVal[r, c] = d;
-                ++r;
-                if(r >= 3)
-                {
-                    r = 0;
-                    ++c;
-                }
-            }
-
-
-            return retVal;
-        }
-
-        static int rankOfMatrix(double[,] mat, int Row, int Column)
-        {
-
-            int rank = Column;
-
-            for (int row = 0; row < rank; row++)
-            {
-                // Before we visit current row  
-                // 'row', we make sure that  
-                // mat[row][0],....mat[row][row-1] 
-                // are 0.
-                // Diagonal element is not zero 
-                if (mat[row, row] != 0)
-                {
-                    for (int col = 0; col < row; col++)
-                    {
-                        if (col != row)
-                        {
-                            // This makes all entries  
-                            // of current column  
-                            // as 0 except entry  
-                            // 'mat[row][row]' 
-                            double mult =(double)mat[col, row] / mat[row, row];
-                            for (int i = 0; i < rank; i++)
-                                mat[col, i] -= (int)mult * mat[row, i];
-                        }
-                    }
-                }
-                // Diagonal element is already zero.  
-                // Two cases arise: 
-                // 1) If there is a row below it  
-                // with non-zero entry, then swap  
-                // this row with that row and process  
-                // that row 
-                // 2) If all elements in current  
-                // column below mat[r][row] are 0,  
-                // then remvoe this column by  
-                // swapping it with last column and 
-                // reducing number of columns by 1. 
                 else
                 {
-                    bool reduce = true;
-                    // Find the non-zero element  
-                    // in current column  
-                    for (int i = row + 1; i < row; i++)
-                    {
-                        // Swap the row with non-zero  
-                        // element with this row. 
-                        if (mat[i, row] != 0)
-                        {
-                            swap(mat, row, i, rank);
-                            reduce = false;
-                            break;
-                        }
-                    }
-                    // If we did not find any row with  
-                    // non-zero element in current  
-                    // columnm, then all values in  
-                    // this column are 0. 
-                    if (reduce)
-                    {
-                        // Reduce number of columns 
-                        rank--;
-                        // Copy the last column here 
-                        for (int i = 0; i < row; i++)
-                            mat[i, row] = mat[i, rank];
-                    }
-                    // Process this row again 
-                    row--;
+                    p1 = newPoint;
+                    p2 = oldPoint;
                 }
+                if((newPoint.X < point.X) == (point.X <= oldPoint.X) && (point.Y - p1.Y) * (p2.X - p1.X) < (p2.Y - p1.Y)*(point.X - p1.X))
+                {
+                    inside = !inside;
+                }
+                oldPoint = newPoint;
             }
-            return rank;
+            return inside;
         }
 
-        // function for exchanging two rows 
-        // of a matrix  
-        static void swap(double[,] mat,int row1, int row2, int col)
+        static void BuildingtoOBJ(List<Building> buildings, string path)
         {
-            for (int i = 0; i < col; i++)
+            int iteration = 1;
+            foreach(Building b in buildings)
             {
-                double temp = mat[row1, i];
-                mat[row1, i] = mat[row2, i];
-                mat[row2, i] = temp;
+                for(int i = 0; i < b.sides.Count; ++i)
+                {
+                    Polygon p = b.sides[i];
+                    ProjectPolygon(ref p, b.latitude, b.longitude);
+                }
+                foreach(Polygon p in b.sides)
+                {
+                    
+                    var xy = TwoDimensionalPolygon(p, "xy");
+                    var xz = TwoDimensionalPolygon(p, "xz");
+                    var yz = TwoDimensionalPolygon(p, "yz");
+
+                    var xyArea = PolygonArea(xy);
+                    var xzArea = PolygonArea(xz);
+                    var yzArea = PolygonArea(yz);
+                    Delaunator d;
+                    bool convex;
+                    if(xyArea >= xzArea && xyArea >= yzArea)
+                    {
+                        if(!IsClockwise(xy))
+                        {
+                            var pverts = p.verts;
+                            Array.Reverse(xy);
+                            p.ReverseVerts();
+                        }
+                        p.pointsFlattened = xy;
+                        convex = IsConvex(xy);
+                        d = new Delaunator(xy);
+                        if (!convex)
+                            p.isConcave = true;
+                    }
+                    else if(xzArea >= xyArea && xzArea >= yzArea)
+                    {
+                        if (!IsClockwise(xz))
+                        {
+                            var pverts = p.verts;
+                            Array.Reverse(xz);
+                            p.ReverseVerts();
+                            var prev = p.verts;
+                        }
+                        p.pointsFlattened = xz;
+                        convex = IsConvex(xz);
+                        d = new Delaunator(xz);
+                        if (!convex)
+                            p.isConcave = true;
+                    }
+                    else
+                    {
+                        if (!IsClockwise(yz))
+                        {
+                            var pverts = p.verts;
+                            Array.Reverse(yz);
+                            p.ReverseVerts();
+                        }
+                        p.pointsFlattened = yz;
+                        convex = IsConvex(yz);
+                        d = new Delaunator(yz);
+                        if (!convex)
+                            p.isConcave = true;
+                    }
+                    p.triangles = d.Triangles;
+                    if (p.isConcave)
+                        p.triangles = TriangulatePolygon(p);
+                //p.triangles = TriangulateConcavePolygon(p);                                                                                                                                                                                                                                                                                                                                                                                                     
+                }
+                string filename = Path.GetFileName(path);
+                var filenameNoExtension = filename.Replace(".gml", "");
+                string newPath = path.Replace(filename, "\\output\\" + filenameNoExtension + "_building_" + iteration.ToString() + ".obj");
+                ++iteration;
+                using (StreamWriter sw = File.CreateText(newPath))
+                {
+                    sw.WriteLine("Produced by Cognitics");
+                    sw.WriteLine(DateTime.Now);
+                    sw.WriteLine("");
+                    foreach(Polygon p in b.sides)
+                    {
+                        for (int i = 0; i < p.verts.Count - 1; i += 3)
+                        {
+                            sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
+                        }
+                    }
+                    int triangleOffset = 1;
+                    foreach(Polygon p in b.sides)
+                    {
+                        for (int i = 0; i < p.triangles.Length; i += 3)
+                        {
+                            sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
+                        }
+                        triangleOffset += p.verts.Count / 3;
+                    }
+                }
             }
+        }
+
+        static bool IsClockwise(IPoint[] points)
+        {
+            double sum = 0.0;
+            for(int i = 0; i < points.Length; ++i)
+            {
+                IPoint i1 = points[i];
+                IPoint i2 = points[Modulo(i + 1, points.Length)];
+                sum += (i2.X - i1.X) * (i2.Y + i1.Y);
+            }
+            return sum > 0.0;
+        }
+
+        static int[] TriangulatePolygon(Polygon polygon)
+        {
+            int[] triangles = polygon.triangles;
+            List<int> prunedTriangles = new List<int>();
+            for(int i = 0; i < triangles.Length; i += 3)
+            {
+                //find the mid point, if this triangle is in the polygon, add these to the prunedTriangle list. 
+                var firstTri = polygon.pointsFlattened[triangles[i]];
+                var secondTri = polygon.pointsFlattened[triangles[i + 1]];
+                var thirdTri = polygon.pointsFlattened[triangles[i + 2]];
+
+                var xAverage = (firstTri.X + secondTri.X + thirdTri.X) / 3;
+                var yAverage = (firstTri.Y + secondTri.Y + thirdTri.Y) / 3;
+
+                Point p = new Point(xAverage, yAverage);
+                if(IsInPolygon(polygon.pointsFlattened, p))
+                {
+                    prunedTriangles.Add(triangles[i]);
+                    prunedTriangles.Add(triangles[i + 1]);
+                    prunedTriangles.Add(triangles[i + 2]);
+                }
+            }
+            return prunedTriangles.ToArray();
+        }
+
+        static bool IsConvex(IPoint[] points)
+        {
+            if (points.Length < 4)
+                return true;
+            bool sign = false;
+            for(int i = 0; i < points.Length; ++i)
+            {
+                double dx1 = points[(i + 2) % points.Length].X - points[(i + 1) % points.Length].X;
+                double dy1 = points[(i + 2) % points.Length].Y - points[(i + 1) % points.Length].Y;
+                double dx2 = points[i].X - points[(i + 1) % points.Length].X;
+                double dy2 = points[i].Y - points[(i + 1) % points.Length].Y;
+                double crossproduct = dx1 * dy2 - dy1 * dx2;
+                if (i == 0)
+                    sign = crossproduct > 0;
+                else if (sign != (crossproduct > 0))
+                    return false;
+            }
+            return true;
+        }
+
+        static int Modulo(int a, int b)
+        {
+            int mod = a % b;
+            return mod < 0 ? mod + b : mod;
+        }
+
+        static void ProjectPolygon(ref Polygon polygon, double lattitude, double longitude)
+        {
+            GeographicCoordinates coords = new GeographicCoordinates(lattitude, longitude);
+            FlatEarthProjection fep = new FlatEarthProjection(coords);
+            for(int i = 0; i < polygon.verts.Count - 1; i += 3)
+            {
+                double x, y;
+                fep.TransformToCartesian(polygon.verts[i + 1], polygon.verts[i], out x, out y);
+                polygon.verts[i] = y;
+                polygon.verts[i + 1] = x;
+            }
+        }
+
+        static double PolygonArea(IPoint[] polygon)
+        {
+            double retVal = 0.0;
+            int i, j;
+
+            for(i = 0; i < polygon.Length; ++i)
+            {
+                j = (i + 1) % polygon.Length;
+                retVal += polygon[i].X * polygon[j].Y;
+                retVal -= polygon[i].Y * polygon[j].X;
+            }
+            retVal /= 2;
+
+            return (retVal < 0) ? -retVal : retVal;
+        }
+
+        static IPoint[] TwoDimensionalPolygon(Polygon p, string components)
+        {
+            if (components.Length != 2)
+                return null;
+            IPoint[] retVal = new IPoint[p.verts.Count / 3];
+            string comps = components.ToLower();
+            if(comps.Contains('x') && comps.Contains('y'))
+            {
+                for(int i = 0; i < p.verts.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.verts[i], p.verts[i + 1]);
+                }
+                return retVal;
+            }
+            if(comps.Contains('x') && comps.Contains('z'))
+            {
+                for (int i = 0; i < p.verts.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.verts[i], p.verts[i + 2]);
+                }
+                return retVal;
+            }
+            if(comps.Contains('y') && comps.Contains('z'))
+            {
+                for (int i = 0; i < p.verts.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.verts[i + 1], p.verts[i + 2]);
+                }
+                return retVal;
+            }
+            else
+                return null;
         }
     }
 }

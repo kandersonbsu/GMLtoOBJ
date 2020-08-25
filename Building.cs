@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Xml.Linq;
+using System.Numerics;
 
 namespace GMLtoOBJ
 {
@@ -81,7 +82,7 @@ namespace GMLtoOBJ
 
         private void BuildSides(XElement node)
         {
-            if (!node.Name.ToString().Contains("CompositeSurface"))
+            if (!node.Name.ToString().Contains("LinearRing"))
             {
                 foreach (XElement child in node.Nodes())
                     BuildSides(child);
@@ -91,13 +92,15 @@ namespace GMLtoOBJ
                 foreach (XElement element in node.Nodes())
                 {
                     List<double> doubleList = new List<double>();
+                    
                     var value = element.Value;
-                    var stringValues = value.Split(" ");
+                    var stringValues = value.Split(' ');
                     foreach(string s in stringValues)
-                    {
                         doubleList.Add(double.Parse(s));
+                    if(doubleList[0] == doubleList[doubleList.Count - 3] && doubleList[1] == doubleList[doubleList.Count - 2] && doubleList[2] == doubleList[doubleList.Count - 1])
+                    {
+                        doubleList.RemoveRange(doubleList.Count - 3, 3);
                     }
-                    TriangleNet.Geometry.Polygon p = new TriangleNet.Geometry.Polygon();
                     sides.Add(new Polygon(doubleList));
                 }
             }
