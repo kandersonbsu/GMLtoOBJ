@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Xml;
-using System.Numerics;
 using System.Xml.Linq;
 using DelaunatorSharp;
 using Cognitics.CoordinateSystems;
@@ -12,17 +9,45 @@ namespace GMLtoOBJ
 {
     class Program
     {
+        static string PathToFileFolder;
+        static string PathToOutputFolder;
         static void Main(string[] args)
         {
-            if (args.Length == 0)
+            PathToFileFolder = args[0] == null ? "" : args[0];
+            var d = Path.GetDirectoryName(PathToFileFolder);
+            PathToOutputFolder = args.Length > 1 ? args[1] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
+            if (args[0] == null)
+            {
                 PrintUsage();
-            else
-                OpenFile(args[0]);
+                return;
+            }
+            try
+            {
+                Directory.CreateDirectory(PathToOutputFolder);
+            }
+            catch (IOException e)
+            {
+                Console.WriteLine(e.Message);
+                PrintUsage();
+                return;
+            }
+            if(File.Exists(PathToFileFolder))
+                OpenFile(PathToFileFolder);
+            else if(Directory.Exists(PathToFileFolder))
+            {
+                DirectoryInfo dinfo = new DirectoryInfo(PathToFileFolder);
+                foreach(var file in dinfo.GetFiles("*.gml"))
+                {
+                    OpenFile(file.FullName);
+                }
+            }
         }
 
         static void PrintUsage()
         {
-            Console.Out.WriteLine("This is the usage.");
+            Console.Out.WriteLine("CityGML to OBJ Converter.");
+            Console.Out.WriteLine("GMLtoOBJ [Path to file/folder] [Path to output folder.");
+            Console.Out.WriteLine("If no output Folder is specified, the default will create an output ");
         }
 
         static void OpenFile(string path)
@@ -40,12 +65,7 @@ namespace GMLtoOBJ
                             foreach(XElement child in element.Elements())
                             {
                                 if (child.Name.ToString().Contains("building"))
-                                {
-                                    var attr = child.FirstAttribute.Value;
-                                    Building building = new Building(attr);
-                                    building.Build(child);
-                                    buildings.Add(building);
-                                }
+                                    buildings.Add(Build(child));
                             }
                         }
                     }
@@ -54,16 +74,91 @@ namespace GMLtoOBJ
             }
         }
 
+        static void BuildSides(XElement node, ref Building building)
+        {
+            if (!node.Name.ToString().Contains("LinearRing"))
+            {
+                foreach (XElement child in node.Nodes())
+                    BuildSides(child, ref building);
+            }
+            else
+            {
+                foreach (XElement element in node.Nodes())
+                {
+                    List<double> doubleList = new List<double>();
+
+                    var value = element.Value;
+                    var stringValues = value.Split(' ');
+                    foreach (string s in stringValues)
+                        doubleList.Add(double.Parse(s));
+                    if (doubleList[0] == doubleList[doubleList.Count - 3] && doubleList[1] == doubleList[doubleList.Count - 2] && doubleList[2] == doubleList[doubleList.Count - 1])
+                    {
+                        doubleList.RemoveRange(doubleList.Count - 3, 3);
+                    }
+                    building.sides.Add(new Polygon(doubleList));
+                }
+            }
+        }
+
+        static Building Build(XElement child)
+        {
+            Building retVal = new Building(child.FirstAttribute.Value);
+            foreach (XElement node in child.Nodes())
+            {
+                if (node.Name.ToString().Contains("Solid"))
+                {
+                    BuildSides(node, ref retVal);
+                    continue;
+                }
+                switch (node.FirstAttribute.Value)
+                {
+                    case "hash":
+                        retVal.hash = node.Value;
+                        break;
+                    case "ubid":
+                        retVal.ubid = node.Value;
+                        break;
+                    case "state":
+                        retVal.state = node.Value;
+                        break;
+                    case "county":
+                        retVal.county = node.Value;
+                        break;
+                    case "grid":
+                        retVal.grid = node.Value;
+                        break;
+                    case "latitude":
+                        retVal.latitude = double.Parse(node.Value);
+                        break;
+                    case "longitude":
+                        retVal.longitude = double.Parse(node.Value);
+                        break;
+                    case "area":
+                        retVal.area = double.Parse(node.Value);
+                        break;
+                    case "height":
+                        retVal.height = double.Parse(node.Value);
+                        break;
+                    case "height_source":
+                        retVal.height_source = node.Value;
+                        break;
+                    case "fp_source":
+                        retVal.fp_source = node.Value;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            return retVal;
+        }
+
         static bool IsInPolygon(IPoint[] polygon, IPoint point)
         {
             IPoint p1, p2;
             bool inside = false;
-
             if (polygon.Length < 3)
                 return false;
-
             var oldPoint = new Point(polygon[polygon.Length - 1].X, polygon[polygon.Length - 1].Y);
-
             for(int i = 0; i < polygon.Length; ++i)
             {
                 var newPoint = new Point(polygon[i].X, polygon[i].Y);
@@ -111,15 +206,19 @@ namespace GMLtoOBJ
                     bool convex;
                     if(xyArea >= xzArea && xyArea >= yzArea)
                     {
-                        if(!IsClockwise(xy))
+                        if (!IsClockwise(xy))
                         {
                             var pverts = p.verts;
                             Array.Reverse(xy);
                             p.ReverseVerts();
+                            d = new Delaunator(xy);
+                            int[] tris = InvertTriangles(d.Triangles);
+                            p.triangles = tris;
                         }
+                        else
+                            d = new Delaunator(xy);
                         p.pointsFlattened = xy;
                         convex = IsConvex(xy);
-                        d = new Delaunator(xy);
                         if (!convex)
                             p.isConcave = true;
                     }
@@ -130,11 +229,14 @@ namespace GMLtoOBJ
                             var pverts = p.verts;
                             Array.Reverse(xz);
                             p.ReverseVerts();
-                            var prev = p.verts;
+                            d = new Delaunator(xz);
+                            int[] tris = InvertTriangles(d.Triangles);
+                            p.triangles = tris;
                         }
+                        else
+                            d = new Delaunator(xz);
                         p.pointsFlattened = xz;
                         convex = IsConvex(xz);
-                        d = new Delaunator(xz);
                         if (!convex)
                             p.isConcave = true;
                     }
@@ -145,23 +247,27 @@ namespace GMLtoOBJ
                             var pverts = p.verts;
                             Array.Reverse(yz);
                             p.ReverseVerts();
+                            d = new Delaunator(yz);
+                            int[] tris = InvertTriangles(d.Triangles);
+                            p.triangles = tris;
                         }
+                        else
+                            d = new Delaunator(yz);
                         p.pointsFlattened = yz;
                         convex = IsConvex(yz);
-                        d = new Delaunator(yz);
                         if (!convex)
                             p.isConcave = true;
                     }
-                    p.triangles = d.Triangles;
+                    if (p.triangles == null)
+                        p.triangles = d.Triangles;
                     if (p.isConcave)
-                        p.triangles = TriangulatePolygon(p);
-                //p.triangles = TriangulateConcavePolygon(p);                                                                                                                                                                                                                                                                                                                                                                                                     
+                        p.triangles = TriangulatePolygon(p);                                                                                                                                                                                                                                                                                                                                                                                                   
                 }
                 string filename = Path.GetFileName(path);
                 var filenameNoExtension = filename.Replace(".gml", "");
-                string newPath = path.Replace(filename, "\\output\\" + filenameNoExtension + "_building_" + iteration.ToString() + ".obj");
+                string buildingName = "\\" + b.state + "_" + b.county + "_" + b.ubid + ".obj";
                 ++iteration;
-                using (StreamWriter sw = File.CreateText(newPath))
+                using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
                 {
                     sw.WriteLine("Produced by Cognitics");
                     sw.WriteLine(DateTime.Now);
@@ -184,6 +290,18 @@ namespace GMLtoOBJ
                     }
                 }
             }
+        }
+
+        static int[] InvertTriangles(int[] triangles)
+        {
+            int[] retval = new int[triangles.Length];
+            for(int i = 0; i < triangles.Length; i += 3)
+            {
+                retval[i] = triangles[i + 2];
+                retval[i + 1] = triangles[i + 1];
+                retval[i + 2] = triangles[i];
+            }
+            return retval;
         }
 
         static bool IsClockwise(IPoint[] points)
