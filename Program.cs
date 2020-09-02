@@ -11,6 +11,7 @@ namespace GMLtoOBJ
     {
         static string PathToFileFolder;
         static string PathToOutputFolder;
+        static int BuildingCount;
         static void Main(string[] args)
         {
             PathToFileFolder = args[0] == null ? "" : args[0];
@@ -47,7 +48,7 @@ namespace GMLtoOBJ
         {
             Console.Out.WriteLine("CityGML to OBJ Converter.");
             Console.Out.WriteLine("GMLtoOBJ [Path to file/folder] [Path to output folder.");
-            Console.Out.WriteLine("If no output Folder is specified, the default will create an output ");
+            Console.Out.WriteLine("If no output Folder is specified, the default will create an output folder in the input directory.");
         }
 
         static void OpenFile(string path)
@@ -55,9 +56,18 @@ namespace GMLtoOBJ
             List<Building> buildings = new List<Building>();
             if (File.Exists(path))
             {
+                var progressBar = new ProgressBar();
+                BuildingCount = 0;
+                Console.Out.WriteLine("Parsing buildings from " + path);
                 XDocument document = XDocument.Load(path);
+                foreach(XElement element in document.Root.Elements())
+                {
+                    if (element.Name.ToString().Contains("cityObjectMember"))
+                        ++BuildingCount;
+                }
                 if (document.Root != null)
                 {
+                    int progress = 0;
                     foreach (XElement element in document.Root.Elements())
                     {
                         if (element.Name.ToString().Contains("cityObjectMember"))
@@ -65,7 +75,11 @@ namespace GMLtoOBJ
                             foreach(XElement child in element.Elements())
                             {
                                 if (child.Name.ToString().Contains("building"))
+                                {
                                     buildings.Add(Build(child));
+                                    ++progress;
+                                    progressBar.Report((double)progress / BuildingCount);
+                                }
                             }
                         }
                     }
@@ -184,7 +198,12 @@ namespace GMLtoOBJ
 
         static void BuildingtoOBJ(List<Building> buildings, string path)
         {
+            Console.WriteLine("");
+            Console.WriteLine("Creating OBJ files from Buildings:");
+            Console.WriteLine("");
             int iteration = 1;
+            int progress = 0;
+            var progressBar = new ProgressBar();
             foreach(Building b in buildings)
             {
                 for(int i = 0; i < b.sides.Count; ++i)
@@ -194,7 +213,6 @@ namespace GMLtoOBJ
                 }
                 foreach(Polygon p in b.sides)
                 {
-                    
                     var xy = TwoDimensionalPolygon(p, "xy");
                     var xz = TwoDimensionalPolygon(p, "xz");
                     var yz = TwoDimensionalPolygon(p, "yz");
@@ -289,6 +307,8 @@ namespace GMLtoOBJ
                         triangleOffset += p.verts.Count / 3;
                     }
                 }
+                ++progress;
+                progressBar.Report((double)progress / BuildingCount);
             }
         }
 
