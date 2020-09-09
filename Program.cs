@@ -84,6 +84,7 @@ namespace GMLtoOBJ
                         }
                     }
                 }
+                System.Threading.Thread.Sleep(1000);
                 BuildingtoOBJ(buildings, path);
             }
         }
@@ -124,6 +125,12 @@ namespace GMLtoOBJ
                     BuildSides(node, ref retVal);
                     continue;
                 }
+                if (node.Name.ToString().Contains("appearance"))
+                {
+                    ParseAppearance();
+                }
+                if (node.FirstAttribute == null)
+                    continue;
                 switch (node.FirstAttribute.Value)
                 {
                     case "hash":
@@ -166,6 +173,11 @@ namespace GMLtoOBJ
             return retVal;
         }
 
+        static void ParseAppearance()
+        {
+
+        }
+
         static bool IsInPolygon(IPoint[] polygon, IPoint point)
         {
             IPoint p1, p2;
@@ -200,7 +212,6 @@ namespace GMLtoOBJ
         {
             Console.WriteLine("");
             Console.WriteLine("Creating OBJ files from Buildings:");
-            Console.WriteLine("");
             int iteration = 1;
             int progress = 0;
             var progressBar = new ProgressBar();
@@ -289,6 +300,7 @@ namespace GMLtoOBJ
                 {
                     sw.WriteLine("Produced by Cognitics");
                     sw.WriteLine(DateTime.Now);
+                    sw.WriteLine("ORIGIN: " + b.latitude + " " + b.longitude);
                     sw.WriteLine("");
                     foreach(Polygon p in b.sides)
                     {
@@ -310,6 +322,8 @@ namespace GMLtoOBJ
                 ++progress;
                 progressBar.Report((double)progress / BuildingCount);
             }
+            System.Threading.Thread.Sleep(1000);
+            Console.WriteLine();
         }
 
         static int[] InvertTriangles(int[] triangles)

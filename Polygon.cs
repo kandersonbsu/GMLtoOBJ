@@ -12,6 +12,7 @@ namespace GMLtoOBJ
         public int[] triangles;
         public bool isConcave;
         public IPoint[] pointsFlattened;
+        public string gmlID;
         public Polygon(List<double> verts)
         {
             this.verts = verts;
