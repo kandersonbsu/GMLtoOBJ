@@ -24,6 +24,7 @@ namespace GMLtoOBJ
         public double[] centerpoint;
         public bool needsCoordinateTransform;
         public List<Polygon> sides;
+        public List<ISurfaceDataMember> textures;
         public int function;
         public Dictionary<Polygon, TriangleNet.Geometry.Polygon> threeDtoTwoD;
         public Building(string id)
@@ -31,6 +32,7 @@ namespace GMLtoOBJ
             needsCoordinateTransform = true;
             this.id = id;
             sides = new List<Polygon>();
+            textures = new List<ISurfaceDataMember>();
             threeDtoTwoD = new Dictionary<Polygon, TriangleNet.Geometry.Polygon>();
         }
 

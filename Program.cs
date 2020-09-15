@@ -159,7 +159,7 @@ namespace GMLtoOBJ
                 }
                 if (node.Name.ToString().Contains("appearance"))
                 {
-                    ParseAppearance(node);
+                    retVal.textures.AddRange(ParseAppearance(node));
                     continue;
                 }
                 if (node.Name == bldgBoundedBy)
@@ -228,6 +228,7 @@ namespace GMLtoOBJ
             var lod2MultiSurface = surface.Element(XName.Get("lod2MultiSurface", buildingURL));
             //Get the gml MultiSurface node
             var multisurface = lod2MultiSurface.Element(XName.Get("MultiSurface", gmlURL));
+            var parentSurfaceID = multisurface.FirstAttribute.Value;
             //Each child of the multisurface node is a polygon
             //Foreach child of multisurface, 
             //create a new polygon, 
@@ -238,6 +239,7 @@ namespace GMLtoOBJ
                 if (child.Name != XName.Get("surfaceMember", gmlURL))
                     continue;
                 Polygon polygon = new Polygon();
+                polygon.parentID = parentSurfaceID;
                 var gmlPolygon = child.Element(XName.Get("Polygon", gmlURL));
                 //gmlPolygon.Value is the positions
                 polygon.gmlID = gmlPolygon.FirstAttribute.Value;
@@ -285,26 +287,37 @@ namespace GMLtoOBJ
             }
         }
 
-        static void ParseAppearance(XElement node)
+        static List<ISurfaceDataMember> ParseAppearance(XElement node)
         {
+            List<ISurfaceDataMember> retVal = new List<ISurfaceDataMember>();
             string app = "http://www.opengis.net/citygml/appearance/2.0";
             XName appearance = XName.Get("Appearance", app);
             XName surfaceDataMember = XName.Get("surfaceDataMember", app);
             var child = node.Element(appearance);
             var surfaceDataMembers = child.Elements(surfaceDataMember);
-            foreach(var sfd in surfaceDataMembers)
+            foreach (var sfd in surfaceDataMembers)
             {
                 var ParameterizedTexture = XName.Get("ParameterizedTexture", app);
+                var X3DMaterial = XName.Get("X3DMaterial", app);
                 var textures = sfd.Elements(ParameterizedTexture);
-                foreach(var texture in textures)
+                var materials = sfd.Elements(X3DMaterial);
+                foreach (var texture in textures)
                 {
-                    GMLTexture gmlTexture = new GMLTexture(texture.FirstAttribute.Value);
-                    CreateTexture(ref gmlTexture, texture);
+                    ParameterizedTexture gmlTexture = new ParameterizedTexture(texture.FirstAttribute.Value);
+                    CreateParamaterizedTexture(ref gmlTexture, texture);
+                    retVal.Add(gmlTexture);
+                }
+                foreach(var material in materials)
+                {
+                    X3DMaterial mat = new X3DMaterial(material.FirstAttribute.Value);
+                    CreateX3DMaterial(ref mat, material);
+                    retVal.Add(mat);
                 }
             }
+            return retVal;
         }
 
-        static void CreateTexture(ref GMLTexture texture, XElement element)
+        static void CreateParamaterizedTexture(ref ParameterizedTexture texture, XElement element)
         {
             string app = "http://www.opengis.net/citygml/appearance/2.0";
             foreach (var child in element.Elements())
@@ -355,6 +368,16 @@ namespace GMLtoOBJ
                     }
                     continue;
                 }
+            }
+        }
+
+        static void CreateX3DMaterial(ref X3DMaterial material, XElement element)
+        {
+            string gmlString = "http://www.opengis.net/gml";
+            string appString = "http://www.opengis.net/citygml/appearance/2.0";
+            foreach (var child in element.Elements())
+            {
+
             }
         }
 

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace GMLtoOBJ
 {
-    class GMLTexture
+    class ParameterizedTexture : ISurfaceDataMember
     {
         public string gmlID;
         public string imageURI;
@@ -15,7 +15,7 @@ namespace GMLtoOBJ
         public string targetURI;
         public List<double> textureCoordinates;
 
-        public GMLTexture()
+        public ParameterizedTexture()
         {
             gmlID = "";
             imageURI = "";
@@ -27,9 +27,9 @@ namespace GMLtoOBJ
             textureCoordinates = new List<double>();
         }
 
-        public GMLTexture(string id)
+        public ParameterizedTexture(string ID)
         {
-            gmlID = id;
+            gmlID = ID;
             imageURI = "";
             mimeType = "";
             textureType = "";
