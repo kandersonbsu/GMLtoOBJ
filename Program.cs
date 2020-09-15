@@ -60,7 +60,7 @@ namespace GMLtoOBJ
                 BuildingCount = 0;
                 Console.Out.WriteLine("Parsing buildings from " + path);
                 XDocument document = XDocument.Load(path);
-                foreach(XElement element in document.Root.Elements())
+                foreach (XElement element in document.Root.Elements())
                 {
                     if (element.Name.ToString().Contains("cityObjectMember"))
                         ++BuildingCount;
@@ -118,8 +118,40 @@ namespace GMLtoOBJ
         static Building Build(XElement child)
         {
             Building retVal = new Building(child.FirstAttribute.Value);
+            string building = "http://www.opengis.net/citygml/building/2.0";
+            string gml = "http://www.opengis.net/gml";
+            var bldgBoundedBy = XName.Get("boundedBy", building);
+            var gmlBoundedby = XName.Get("boundedBy", gml);
+            var gmlEnvelope = XName.Get("Envelope", gml);
+            var bldgFunction = XName.Get("function", building);
+            var bldgMeasuredHeight = XName.Get("measuredHeight", building);
+            var nodes = child.Nodes();
             foreach (XElement node in child.Nodes())
             {
+                if (node.Name == bldgFunction)
+                {
+                    retVal.function = int.Parse(node.Value);
+                    continue;
+                }
+                if(node.Name == bldgMeasuredHeight)
+                {
+                    retVal.measuredHeight = double.Parse(node.Value);
+                }
+                if (node.Name == gmlBoundedby)
+                {
+                    var firstChild = node.Element(gmlEnvelope);
+                    retVal.needsCoordinateTransform = firstChild.FirstAttribute.Value.Contains("EPSG:4979");
+                    var lowerCorner = firstChild.Element(XName.Get("lowerCorner", gml));
+                    var upperCorner = firstChild.Element(XName.Get("upperCorner", gml));
+                    var lowerCornerArray = lowerCorner.Value.Split(' ');
+                    var upperCornerArray = upperCorner.Value.Split(' ');
+                    double[] averageArray = new double[3];
+                    averageArray[0] = (double.Parse(lowerCornerArray[0]) + double.Parse(upperCornerArray[0])) / 2;
+                    averageArray[1] = (double.Parse(lowerCornerArray[1]) + double.Parse(upperCornerArray[1])) / 2;
+                    averageArray[2] = (double.Parse(lowerCornerArray[2]) + double.Parse(upperCornerArray[2])) / 2;
+                    retVal.centerpoint = averageArray;
+                    continue;
+                }
                 if (node.Name.ToString().Contains("Solid"))
                 {
                     BuildSides(node, ref retVal);
@@ -127,7 +159,13 @@ namespace GMLtoOBJ
                 }
                 if (node.Name.ToString().Contains("appearance"))
                 {
-                    ParseAppearance();
+                    ParseAppearance(node);
+                    continue;
+                }
+                if (node.Name == bldgBoundedBy)
+                {
+                    //Here is the root node to our building geometry. In LOD2, this is either walls, roofs, or floors. This will likely hit three times per building.  
+                    LOD2Polygons(node, ref retVal);
                 }
                 if (node.FirstAttribute == null)
                     continue;
@@ -173,9 +211,151 @@ namespace GMLtoOBJ
             return retVal;
         }
 
-        static void ParseAppearance()
+        static void LOD2Polygons(XElement element, ref Building building)
         {
+            string gmlURL = "http://www.opengis.net/gml";
+            string buildingURL = "http://www.opengis.net/citygml/building/2.0";
+            //element is bldg:boundedBy
+            //Get the wallsurface, groundsurface, or roofsurface node
+            var surface = element.Element(XName.Get("WallSurface", buildingURL));
+            if (surface == null)
+                surface = element.Element(XName.Get("GroundSurface", buildingURL));
+            if (surface == null)
+                surface = element.Element(XName.Get("RoofSurface", buildingURL));
+            if (surface == null)
+                return;
+            //Get the lod2MultiSurface node
+            var lod2MultiSurface = surface.Element(XName.Get("lod2MultiSurface", buildingURL));
+            //Get the gml MultiSurface node
+            var multisurface = lod2MultiSurface.Element(XName.Get("MultiSurface", gmlURL));
+            //Each child of the multisurface node is a polygon
+            //Foreach child of multisurface, 
+            //create a new polygon, 
+            //get the gml:id as the polygon id, 
+            //parse through the double list to create the polygon. Exclude the last three points if they match the first three. 
+            foreach(XElement child in multisurface.Elements())
+            {
+                if (child.Name != XName.Get("surfaceMember", gmlURL))
+                    continue;
+                Polygon polygon = new Polygon();
+                var gmlPolygon = child.Element(XName.Get("Polygon", gmlURL));
+                //gmlPolygon.Value is the positions
+                polygon.gmlID = gmlPolygon.FirstAttribute.Value;
+                foreach (var poly in gmlPolygon.Elements())
+                {
+                    var rawValues = poly.Value.Split(' ');
+                    foreach (string s in rawValues)
+                        polygon.verts.Add(double.Parse(s));
+                    if (polygon.verts[0] == polygon.verts[polygon.verts.Count - 3] && polygon.verts[1] == polygon.verts[polygon.verts.Count - 2] && polygon.verts[2] == polygon.verts[polygon.verts.Count - 1])
+                        polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
+                    if (!building.needsCoordinateTransform)
+                        NormalizeVerts(building, ref polygon);
+                    building.sides.Add(polygon);
+                }
+            }
+        }
 
+        static void NormalizeVerts(Building building, ref Polygon polygon)
+        {
+            if (building.centerpoint == null || building.centerpoint.Length != 3)
+                return;
+            var centerPoint = building.centerpoint;
+            for(int i = 0; i < polygon.verts.Count; ++i)
+            {
+                int index = Modulo(i, 3);
+                polygon.verts[i] = polygon.verts[i] - centerPoint[index];
+            }
+        }
+
+        static void LOD2Sides(XElement element, ref Building building)
+        {
+            string elementName = element.Name.ToString();
+
+            if (!elementName.Contains("MultiSurface"))
+            {
+                foreach (XElement node in element.Nodes())
+                    LOD2Sides(node, ref building);
+            }
+            foreach(XElement child in element.Nodes())
+            {
+                if (!child.Name.ToString().Contains("surfaceMember"))
+                    continue;
+                List<double> verts = new List<double>();
+                
+            }
+        }
+
+        static void ParseAppearance(XElement node)
+        {
+            string app = "http://www.opengis.net/citygml/appearance/2.0";
+            XName appearance = XName.Get("Appearance", app);
+            XName surfaceDataMember = XName.Get("surfaceDataMember", app);
+            var child = node.Element(appearance);
+            var surfaceDataMembers = child.Elements(surfaceDataMember);
+            foreach(var sfd in surfaceDataMembers)
+            {
+                var ParameterizedTexture = XName.Get("ParameterizedTexture", app);
+                var textures = sfd.Elements(ParameterizedTexture);
+                foreach(var texture in textures)
+                {
+                    GMLTexture gmlTexture = new GMLTexture(texture.FirstAttribute.Value);
+                    CreateTexture(ref gmlTexture, texture);
+                }
+            }
+        }
+
+        static void CreateTexture(ref GMLTexture texture, XElement element)
+        {
+            string app = "http://www.opengis.net/citygml/appearance/2.0";
+            foreach (var child in element.Elements())
+            {
+                if(child.Name == XName.Get("imageURI", app))
+                {
+                    texture.imageURI = child.Value;
+                    continue;
+                }
+                if(child.Name == XName.Get("mimeType", app))
+                {
+                    texture.mimeType = child.Value;
+                    continue;
+                }
+                if(child.Name == XName.Get("textureType", app))
+                {
+                    texture.textureType = child.Value;
+                    continue;
+                }
+                if(child.Name == XName.Get("wrapMode", app))
+                {
+                    texture.wrapMode = child.Value;
+                    continue;
+                }
+                if(child.Name == XName.Get("borderColor", app))
+                {
+                    string value = child.Value;
+                    var valArray = value.Split(' ');
+                    int index = 0;
+                    foreach(string s in valArray)
+                    {
+                        double d = double.Parse(s);
+                        texture.borderColor[index] = d;
+                        ++index;
+                    }
+                    continue;
+                }
+                if(child.Name == XName.Get("target", app))
+                {
+                    texture.targetURI = child.FirstAttribute.Value;
+                    //We also have to parse out the texture coordinates here. 
+                    string value = child.Value;
+                    string[] valueArray = value.Split(' ');
+                    foreach(string s in valueArray)
+                    {
+                        double d = double.Parse(s);
+                        texture.textureCoordinates.Add(d);
+                    }
+                    continue;
+                }
+            }
         }
 
         static bool IsInPolygon(IPoint[] polygon, IPoint point)
@@ -217,10 +397,13 @@ namespace GMLtoOBJ
             var progressBar = new ProgressBar();
             foreach(Building b in buildings)
             {
-                for(int i = 0; i < b.sides.Count; ++i)
+                if(b.needsCoordinateTransform)
                 {
-                    Polygon p = b.sides[i];
-                    ProjectPolygon(ref p, b.latitude, b.longitude);
+                    for (int i = 0; i < b.sides.Count; ++i)
+                    {
+                        Polygon p = b.sides[i];
+                        ProjectPolygon(ref p, b.latitude, b.longitude);
+                    }
                 }
                 foreach(Polygon p in b.sides)
                 {
@@ -295,12 +478,15 @@ namespace GMLtoOBJ
                 string filename = Path.GetFileName(path);
                 var filenameNoExtension = filename.Replace(".gml", "");
                 string buildingName = "\\" + b.state + "_" + b.county + "_" + b.ubid + ".obj";
+                if (buildingName == "\\__.obj")
+                    buildingName = "\\" + b.GetID() + ".obj";
                 ++iteration;
                 using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
                 {
                     sw.WriteLine("Produced by Cognitics");
                     sw.WriteLine(DateTime.Now);
-                    sw.WriteLine("ORIGIN: " + b.latitude + " " + b.longitude);
+                    string origin = b.centerpoint == null ? "ORIGIN: " + b.latitude + " " + b.longitude : "ORIGIN: " + b.centerpoint[0] + " " + b.centerpoint[1] + " " + b.centerpoint[2];
+                    sw.WriteLine(origin);
                     sw.WriteLine("");
                     foreach(Polygon p in b.sides)
                     {

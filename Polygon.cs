@@ -21,7 +21,7 @@ namespace GMLtoOBJ
 
         public Polygon()
         {
-
+            verts = new List<double>();
         }
 
         public void ReverseVerts()
