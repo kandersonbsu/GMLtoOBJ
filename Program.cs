@@ -358,7 +358,8 @@ namespace GMLtoOBJ
                 }
                 if(child.Name == XName.Get("target", app))
                 {
-                    texture.targetURI = child.FirstAttribute.Value;
+                    string target = child.FirstAttribute.Value.Substring(1, child.FirstAttribute.Value.Length - 1);
+                    texture.targetURI = target;
                     //We also have to parse out the texture coordinates here. 
                     string value = child.Value;
                     string[] valueArray = value.Split(' ');
@@ -367,6 +368,8 @@ namespace GMLtoOBJ
                         double d = double.Parse(s);
                         texture.textureCoordinates.Add(d);
                     }
+                    if(texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
+                        texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
                     continue;
                 }
             }
@@ -427,7 +430,7 @@ namespace GMLtoOBJ
                 if (child.Name == XName.Get("target", appString))
                 {
                     string target = child.Value;
-                    target = target.Substring(1, target.Length - 2);
+                    target = target.Substring(1, target.Length - 1);
                     material.target = target;
                     continue;
                 }
@@ -575,14 +578,40 @@ namespace GMLtoOBJ
                     string origin = b.centerpoint == null ? "ORIGIN: " + b.latitude + " " + b.longitude : "ORIGIN: " + b.centerpoint[0] + " " + b.centerpoint[1] + " " + b.centerpoint[2];
                     sw.WriteLine(origin);
                     sw.WriteLine("");
-                    foreach(Polygon p in b.sides)
+                    int triangleOffset = 1;
+                    foreach (Polygon p in b.sides)
                     {
+                        sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
                         for (int i = 0; i < p.verts.Count - 1; i += 3)
                         {
                             sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
                         }
+                        var ID = p.gmlID;
+                        foreach(ISurfaceDataMember texture in b.textures)
+                        {
+                            if(texture.GetType() == typeof(ParameterizedTexture))
+                            {
+                                var paramaterizedTexture = (ParameterizedTexture)texture;
+                                if (paramaterizedTexture.targetURI != ID)
+                                    continue;
+                                for(int i = 0; i < paramaterizedTexture.textureCoordinates.Count; i += 2)
+                                {
+                                    sw.WriteLine("vt " + paramaterizedTexture.textureCoordinates[i] + " " + paramaterizedTexture.textureCoordinates[i + 1]);
+                                }
+                            }
+                            else
+                            {
+                                var x3dMaterial = (X3DMaterial)texture;
+                            }
+                        }
+                        for (int i = 0; i < p.triangles.Length; i += 3)
+                        {
+                            sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
+                        }
+                        triangleOffset += p.verts.Count / 3;
+                        sw.WriteLine();
                     }
-                    int triangleOffset = 1;
+                    /*int triangleOffset = 1;
                     foreach(Polygon p in b.sides)
                     {
                         for (int i = 0; i < p.triangles.Length; i += 3)
@@ -590,7 +619,7 @@ namespace GMLtoOBJ
                             sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
                         }
                         triangleOffset += p.verts.Count / 3;
-                    }
+                    }*/
                 }
                 ++progress;
                 progressBar.Report((double)progress / BuildingCount);
