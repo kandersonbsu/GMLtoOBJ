@@ -4,6 +4,7 @@ using System.IO;
 using System.Xml.Linq;
 using DelaunatorSharp;
 using Cognitics.CoordinateSystems;
+using System.Numerics;
 
 namespace GMLtoOBJ
 {
@@ -375,10 +376,73 @@ namespace GMLtoOBJ
         {
             string gmlString = "http://www.opengis.net/gml";
             string appString = "http://www.opengis.net/citygml/appearance/2.0";
+            material.gmlID = element.FirstAttribute.Value;
             foreach (var child in element.Elements())
             {
-
+                if(child.Name == XName.Get("name", gmlString))
+                {
+                    material.name = child.Value;
+                    continue;
+                }
+                if(child.Name == XName.Get("ambientIntensity", appString))
+                {
+                    material.ambientIntensity = double.Parse(child.Value);
+                    try
+                    {
+                        material.ambientIntensity = double.Parse(child.Value);
+                    }catch(Exception e)
+                    {
+                        material.ambientIntensity = 0.2; //0.2 is the default ambient intensity value
+                    }
+                    continue;
+                }
+                if(child.Name == XName.Get("diffuseColor", appString))
+                {
+                    var vals = child.Value.Split(' ');
+                    material.diffuseColor = ParseColorValue(vals);
+                    continue;
+                }
+                if(child.Name == XName.Get("emissiveColor", appString))
+                {
+                    var vals = child.Value.Split(' ');
+                    material.emissiveColor = ParseColorValue(vals);
+                    continue;
+                }
+                if (child.Name == XName.Get("specularColor", appString))
+                {
+                    var vals = child.Value.Split(' ');
+                    material.specularColor = ParseColorValue(vals);
+                    continue;
+                }
+                if (child.Name == XName.Get("shininess", appString))
+                {
+                    material.shininess = double.Parse(child.Value);
+                    continue;
+                }
+                if (child.Name == XName.Get("transparency", appString))
+                {
+                    material.transparency = double.Parse(child.Value);
+                    continue;
+                }
+                if (child.Name == XName.Get("target", appString))
+                {
+                    string target = child.Value;
+                    target = target.Substring(1, target.Length - 2);
+                    material.target = target;
+                    continue;
+                }
             }
+        }
+
+        static Vector3 ParseColorValue(string[] values)
+        {
+            if (values.Length != 3)
+                return Vector3.Zero;
+            Vector3 retVal = new Vector3();
+            retVal.X = (float)double.Parse(values[0]);
+            retVal.Y = (float)double.Parse(values[1]);
+            retVal.Z = (float)double.Parse(values[2]);
+            return retVal;
         }
 
         static bool IsInPolygon(IPoint[] polygon, IPoint point)
