@@ -40,5 +40,31 @@ namespace GMLtoOBJ
         {
             return id;
         }
+
+        public void CreateSideUVs()
+        {
+            if (sides == null || textures == null)
+                return;
+            foreach(var texture in textures)
+            {
+                if (texture.GetType() == typeof(X3DMaterial))
+                    continue;
+                ParameterizedTexture param = (ParameterizedTexture)texture;
+                Polygon p = SideFromTexture(param);
+                if (p == null)
+                    continue;
+                p.uvs = param.textureCoordinates;
+            }
+        }
+
+        private Polygon SideFromTexture(ParameterizedTexture texture)
+        {
+            foreach(Polygon p in sides)
+            {
+                if (p.gmlID == texture.targetURI)
+                    return p;
+            }
+            return null;
+        }
     }
 }

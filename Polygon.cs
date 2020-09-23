@@ -9,6 +9,7 @@ namespace GMLtoOBJ
     class Polygon
     {
         public List<double> verts;
+        public List<double> uvs;
         public int[] triangles;
         public bool isConcave;
         public IPoint[] pointsFlattened;
@@ -18,11 +19,13 @@ namespace GMLtoOBJ
         {
             this.verts = verts;
             isConcave = false;
+            uvs = new List<double>();
         }
 
         public Polygon()
         {
             verts = new List<double>();
+            uvs = new List<double>();
         }
 
         public void ReverseVerts()
@@ -38,6 +41,15 @@ namespace GMLtoOBJ
                 reversed.Add(z);
             }
             this.verts = reversed;
+            List<double> uvsReversed = new List<double>();
+            for(int i = uvs.Count - 1; i >=0; i -= 2)
+            {
+                double u = uvs[i - 1];
+                double v = uvs[i];
+                uvsReversed.Add(u);
+                uvsReversed.Add(v);
+            }
+            this.uvs = uvsReversed;
         }
     }
 }

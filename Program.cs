@@ -126,7 +126,6 @@ namespace GMLtoOBJ
             var gmlEnvelope = XName.Get("Envelope", gml);
             var bldgFunction = XName.Get("function", building);
             var bldgMeasuredHeight = XName.Get("measuredHeight", building);
-            var nodes = child.Nodes();
             foreach (XElement node in child.Nodes())
             {
                 if (node.Name == bldgFunction)
@@ -361,16 +360,22 @@ namespace GMLtoOBJ
                     string target = child.FirstAttribute.Value.Substring(1, child.FirstAttribute.Value.Length - 1);
                     texture.targetURI = target;
                     //We also have to parse out the texture coordinates here. 
-                    string value = child.Value;
-                    string[] valueArray = value.Split(' ');
-                    foreach(string s in valueArray)
+                    var textCoordList = XName.Get("TexCoordList", app);
+                    var tclNode = child.Elements(textCoordList);
+                    var textureCoordinates = tclNode.Elements(XName.Get("textureCoordinates", app));
+                    foreach(var t in textureCoordinates)
                     {
-                        double d = double.Parse(s);
-                        texture.textureCoordinates.Add(d);
+                        string value = t.Value;
+                        string[] valueArray = value.Split(' ');
+                        foreach (string s in valueArray)
+                        {
+                            double d = double.Parse(s);
+                            texture.textureCoordinates.Add(d);
+                        }
+                        if (texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
+                            texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
+                        continue;
                     }
-                    if(texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
-                        texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
-                    continue;
                 }
             }
         }
@@ -487,7 +492,8 @@ namespace GMLtoOBJ
             var progressBar = new ProgressBar();
             foreach(Building b in buildings)
             {
-                if(b.needsCoordinateTransform)
+                b.CreateSideUVs();
+                if (b.needsCoordinateTransform)
                 {
                     for (int i = 0; i < b.sides.Count; ++i)
                     {
@@ -571,22 +577,35 @@ namespace GMLtoOBJ
                 if (buildingName == "\\__.obj")
                     buildingName = "\\" + b.GetID() + ".obj";
                 ++iteration;
+                string buildingMTL = buildingName.Replace(".obj", ".mtl");
+                CreateMTLFile(b.textures, PathToOutputFolder + buildingMTL);
+                buildingMTL = buildingMTL.Trim('\\');
                 using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
                 {
+                    int vtOffset = 0;
                     sw.WriteLine("Produced by Cognitics");
                     sw.WriteLine(DateTime.Now);
                     string origin = b.centerpoint == null ? "ORIGIN: " + b.latitude + " " + b.longitude : "ORIGIN: " + b.centerpoint[0] + " " + b.centerpoint[1] + " " + b.centerpoint[2];
                     sw.WriteLine(origin);
+                    sw.WriteLine("mtllib " + buildingMTL);
                     sw.WriteLine("");
                     int triangleOffset = 1;
                     foreach (Polygon p in b.sides)
                     {
+                        bool vertexTextures = false;
                         sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
+                        if (p.gmlID == "DEB_LOD2_UUID_b917749b-0b1f-4b1c-a753-7bf2c74d8d49_f18e8e67-fb0f-42b7-b207-508b76a04a83_poly")
+                            Console.WriteLine();
                         for (int i = 0; i < p.verts.Count - 1; i += 3)
                         {
                             sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
                         }
-                        var ID = p.gmlID;
+                        for(int i = 0; i < p.uvs.Count - 1; i += 2)
+                        {
+                            vertexTextures = true;
+                            sw.WriteLine("vt " + p.uvs[i] + " " + p.uvs[i + 1]);
+                        }
+                        /*var ID = p.gmlID;
                         foreach(ISurfaceDataMember texture in b.textures)
                         {
                             if(texture.GetType() == typeof(ParameterizedTexture))
@@ -596,36 +615,64 @@ namespace GMLtoOBJ
                                     continue;
                                 for(int i = 0; i < paramaterizedTexture.textureCoordinates.Count; i += 2)
                                 {
-                                    sw.WriteLine("vt " + paramaterizedTexture.textureCoordinates[i] + " " + paramaterizedTexture.textureCoordinates[i + 1]);
+                                    vertexTextures = true;
+                                    sw.WriteLine("vt " + (paramaterizedTexture.textureCoordinates[i]) + " " + (paramaterizedTexture.textureCoordinates[i + 1]));
                                 }
                             }
-                            else
+                        }*/
+                        if (!vertexTextures)
+                            vtOffset -= (p.verts.Count / 3);
+                        if (vertexTextures)
+                        {
+                            sw.WriteLine("usemtl " + p.gmlID);
+                            for (int i = 0; i < p.triangles.Length; i += 3)
                             {
-                                var x3dMaterial = (X3DMaterial)texture;
+                                int firstV = p.triangles[i] + triangleOffset;
+                                int secondV = p.triangles[i + 1] + triangleOffset;
+                                int thirdV = p.triangles[i + 2] + triangleOffset;
+
+                                int firstVT = p.triangles[i] + triangleOffset + vtOffset;
+                                int secondVT = p.triangles[i + 1] + triangleOffset + vtOffset;
+                                int thirdVT = p.triangles[i + 2] + triangleOffset + vtOffset;
+                                sw.WriteLine("f " + firstV + "/" + firstVT + " " + secondV + "/" + secondVT + " " + thirdV + "/" + thirdVT);
                             }
                         }
-                        for (int i = 0; i < p.triangles.Length; i += 3)
+                        else
                         {
-                            sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
+                            for (int i = 0; i < p.triangles.Length; i += 3)
+                            {
+                                sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
+                            }
                         }
                         triangleOffset += p.verts.Count / 3;
                         sw.WriteLine();
                     }
-                    /*int triangleOffset = 1;
-                    foreach(Polygon p in b.sides)
-                    {
-                        for (int i = 0; i < p.triangles.Length; i += 3)
-                        {
-                            sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
-                        }
-                        triangleOffset += p.verts.Count / 3;
-                    }*/
                 }
                 ++progress;
                 progressBar.Report((double)progress / BuildingCount);
             }
             System.Threading.Thread.Sleep(1000);
             Console.WriteLine();
+        }
+
+        static void CreateMTLFile(List<ISurfaceDataMember> textures, string path)
+        {
+            using (StreamWriter sw = File.CreateText(path))
+            {
+                foreach(var tex in textures)
+                {
+                    if (tex.GetType() == typeof(X3DMaterial))
+                        continue;
+                    ParameterizedTexture texture = (ParameterizedTexture)tex;
+                    sw.WriteLine("newmtl " + texture.targetURI);
+                    sw.WriteLine("illum 0"); //Possible placeholder
+                    sw.WriteLine("Ka 1.0 1.0 1.0");
+                    sw.WriteLine("Kd 1.0 1.0 1.0");
+                    sw.WriteLine("Ks 0.0 0.0 0.0");
+                    sw.WriteLine("map_Kd " + texture.imageURI);
+                    sw.WriteLine();
+                }
+            }
         }
 
         static int[] InvertTriangles(int[] triangles)
