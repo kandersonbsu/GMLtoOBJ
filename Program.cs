@@ -15,7 +15,7 @@ namespace GMLtoOBJ
         static int BuildingCount;
         static void Main(string[] args)
         {
-            PathToFileFolder = args[0] == null ? "" : args[0];
+             PathToFileFolder = args[0] == null ? "" : args[0];
             var d = Path.GetDirectoryName(PathToFileFolder);
             PathToOutputFolder = args.Length > 1 ? args[1] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
             if (args[0] == null)
@@ -126,6 +126,7 @@ namespace GMLtoOBJ
             var gmlEnvelope = XName.Get("Envelope", gml);
             var bldgFunction = XName.Get("function", building);
             var bldgMeasuredHeight = XName.Get("measuredHeight", building);
+            int i = 0;
             foreach (XElement node in child.Nodes())
             {
                 if (node.Name == bldgFunction)
@@ -164,6 +165,9 @@ namespace GMLtoOBJ
                 }
                 if (node.Name == bldgBoundedBy)
                 {
+                    ++i;
+                    if (i != 274)
+                        continue;
                     //Here is the root node to our building geometry. In LOD2, this is either walls, roofs, or floors. This will likely hit three times per building.  
                     LOD2Polygons(node, ref retVal);
                 }
@@ -224,6 +228,10 @@ namespace GMLtoOBJ
                 surface = element.Element(XName.Get("RoofSurface", buildingURL));
             if (surface == null)
                 return;
+
+            //This is temporary in order to just get the roof
+            if (surface.Name == XName.Get("WallSurface", buildingURL) || surface.Name == XName.Get("GroundSurface", buildingURL))
+                return;
             //Get the lod2MultiSurface node
             var lod2MultiSurface = surface.Element(XName.Get("lod2MultiSurface", buildingURL));
             //Get the gml MultiSurface node
@@ -245,15 +253,33 @@ namespace GMLtoOBJ
                 polygon.gmlID = gmlPolygon.FirstAttribute.Value;
                 foreach (var poly in gmlPolygon.Elements())
                 {
-                    var rawValues = poly.Value.Split(' ');
-                    foreach (string s in rawValues)
-                        polygon.verts.Add(double.Parse(s));
-                    if (polygon.verts[0] == polygon.verts[polygon.verts.Count - 3] && polygon.verts[1] == polygon.verts[polygon.verts.Count - 2] && polygon.verts[2] == polygon.verts[polygon.verts.Count - 1])
-                        polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
-                    if (!building.needsCoordinateTransform)
-                        NormalizeVerts(building, ref polygon);
-                    building.sides.Add(polygon);
+                    if (poly.Name == XName.Get("interior", gmlURL))
+                    {
+                        var rawValues = poly.Value.Split(' ');
+                        foreach (string s in rawValues)
+                            polygon.verts.Add(double.Parse(s));
+                        if (polygon.verts[0] == polygon.verts[polygon.verts.Count - 3] && polygon.verts[1] == polygon.verts[polygon.verts.Count - 2] && polygon.verts[2] == polygon.verts[polygon.verts.Count - 1])
+                            polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
+                    }
+                    else
+                    {
+                        var rawValues = poly.Value.Split(' ');
+                        foreach (string s in rawValues)
+                        {
+                            double d = double.Parse(s);
+                            polygon.verts.Add(d);
+                            polygon.bounds.Add(d);
+                        }
+                        if (polygon.verts[0] == polygon.verts[polygon.verts.Count - 3] && polygon.verts[1] == polygon.verts[polygon.verts.Count - 2] && polygon.verts[2] == polygon.verts[polygon.verts.Count - 1])
+                            polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
+                        if (polygon.bounds[0] == polygon.bounds[polygon.bounds.Count - 3] && polygon.bounds[1] == polygon.bounds[polygon.bounds.Count - 2] && polygon.bounds[2] == polygon.bounds[polygon.bounds.Count - 1])
+                            polygon.bounds.RemoveRange(polygon.bounds.Count - 3, 3);
+                    }
+
                 }
+                if (!building.needsCoordinateTransform)
+                    NormalizeVerts(building, ref polygon);
+                building.sides.Add(polygon);
             }
         }
 
@@ -265,6 +291,9 @@ namespace GMLtoOBJ
             for(int i = 0; i < polygon.verts.Count; ++i)
             {
                 int index = Modulo(i, 3);
+                var p = polygon.verts[i];
+                var c = centerPoint[index];
+                var diff = p - c;
                 polygon.verts[i] = polygon.verts[i] - centerPoint[index];
             }
         }
@@ -442,6 +471,139 @@ namespace GMLtoOBJ
             }
         }
 
+        /// <summary>
+        /// New IsInPolygon code
+        /// </summary>
+        /// <param name="values"></param>
+        /// <returns></returns>
+        // Given three colinear points p, q, r,  
+        // the function checks if point q lies 
+        // on line segment 'pr' 
+        static bool onSegment(Point p, Point q, Point r)
+        {
+            if (q.X <= Math.Max(p.X, r.X) &&
+                q.X >= Math.Min(p.X, r.X) &&
+                q.Y <= Math.Max(p.Y, r.Y) &&
+                q.Y >= Math.Min(p.Y, r.Y))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        // To find orientation of ordered triplet (p, q, r). 
+        // The function returns following values 
+        // 0 --> p, q and r are colinear 
+        // 1 --> Clockwise 
+        // 2 --> Counterclockwise 
+        static int orientation(Point p, Point q, Point r)
+        {
+            double val = (q.Y - p.Y) * (r.X - q.X) - (q.X - p.X) * (r.Y - q.Y);
+
+            if (val == 0)
+            {
+                return 0; // colinear 
+            }
+            return (val > 0) ? 1 : 2; // clock or counterclock wise 
+        }
+
+        // The function that returns true if  
+        // line segment 'p1q1' and 'p2q2' intersect. 
+        static bool doIntersect(Point p1, Point q1,
+                                Point p2, Point q2)
+        {
+            // Find the four orientations needed for  
+            // general and special cases 
+            int o1 = orientation(p1, q1, p2);
+            int o2 = orientation(p1, q1, q2);
+            int o3 = orientation(p2, q2, p1);
+            int o4 = orientation(p2, q2, q1);
+
+            // General case 
+            if (o1 != o2 && o3 != o4)
+            {
+                return true;
+            }
+
+            // Special Cases 
+            // p1, q1 and p2 are colinear and 
+            // p2 lies on segment p1q1 
+            if (o1 == 0 && onSegment(p1, p2, q1))
+            {
+                return true;
+            }
+
+            // p1, q1 and p2 are colinear and 
+            // q2 lies on segment p1q1 
+            if (o2 == 0 && onSegment(p1, q2, q1))
+            {
+                return true;
+            }
+
+            // p2, q2 and p1 are colinear and 
+            // p1 lies on segment p2q2 
+            if (o3 == 0 && onSegment(p2, p1, q2))
+            {
+                return true;
+            }
+
+            // p2, q2 and q1 are colinear and 
+            // q1 lies on segment p2q2 
+            if (o4 == 0 && onSegment(p2, q1, q2))
+            {
+                return true;
+            }
+
+            // Doesn't fall in any of the above cases 
+            return false;
+        }
+
+        // Returns true if the point p lies  
+        // inside the polygon[] with n vertices 
+        static bool isInside(Point[] polygon, Point p)
+        {
+            int n = polygon.Length;
+            // There must be at least 3 vertices in polygon[] 
+            if (n < 3)
+            {
+                return false;
+            }
+
+            // Create a point for line segment from p to infinite 
+            Point extreme = new Point(10000, p.Y);
+
+            // Count intersections of the above line  
+            // with sides of polygon 
+            int count = 0, i = 0;
+            do
+            {
+                int next = (i + 1) % n;
+
+                // Check if the line segment from 'p' to  
+                // 'extreme' intersects with the line  
+                // segment from 'polygon[i]' to 'polygon[next]' 
+                if (doIntersect(polygon[i],
+                                polygon[next], p, extreme))
+                {
+                    // If the point 'p' is colinear with line  
+                    // segment 'i-next', then check if it lies  
+                    // on segment. If it lies, return true, otherwise false 
+                    if (orientation(polygon[i], p, polygon[next]) == 0)
+                    {
+                        return onSegment(polygon[i], p,
+                                         polygon[next]);
+                    }
+                    count++;
+                }
+                i = next;
+            } while (i != 0);
+
+            // Return true if count is odd, false otherwise 
+            return (count % 2 == 1); // Same as (count%2 == 1) 
+        }
+
+
+        //End of new IsInPolygon code
         static Vector3 ParseColorValue(string[] values)
         {
             if (values.Length != 3)
@@ -594,8 +756,6 @@ namespace GMLtoOBJ
                     {
                         bool vertexTextures = false;
                         sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
-                        if (p.gmlID == "DEB_LOD2_UUID_b917749b-0b1f-4b1c-a753-7bf2c74d8d49_f18e8e67-fb0f-42b7-b207-508b76a04a83_poly")
-                            Console.WriteLine();
                         for (int i = 0; i < p.verts.Count - 1; i += 3)
                         {
                             sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
@@ -605,21 +765,6 @@ namespace GMLtoOBJ
                             vertexTextures = true;
                             sw.WriteLine("vt " + p.uvs[i] + " " + p.uvs[i + 1]);
                         }
-                        /*var ID = p.gmlID;
-                        foreach(ISurfaceDataMember texture in b.textures)
-                        {
-                            if(texture.GetType() == typeof(ParameterizedTexture))
-                            {
-                                var paramaterizedTexture = (ParameterizedTexture)texture;
-                                if (paramaterizedTexture.targetURI != ID)
-                                    continue;
-                                for(int i = 0; i < paramaterizedTexture.textureCoordinates.Count; i += 2)
-                                {
-                                    vertexTextures = true;
-                                    sw.WriteLine("vt " + (paramaterizedTexture.textureCoordinates[i]) + " " + (paramaterizedTexture.textureCoordinates[i + 1]));
-                                }
-                            }
-                        }*/
                         if (!vertexTextures)
                             vtOffset -= (p.verts.Count / 3);
                         if (vertexTextures)
@@ -714,11 +859,15 @@ namespace GMLtoOBJ
                 var yAverage = (firstTri.Y + secondTri.Y + thirdTri.Y) / 3;
 
                 Point p = new Point(xAverage, yAverage);
-                if(IsInPolygon(polygon.pointsFlattened, p))
+                if(isInside(polygon.IPointsAsPoints(), p))
                 {
                     prunedTriangles.Add(triangles[i]);
                     prunedTriangles.Add(triangles[i + 1]);
                     prunedTriangles.Add(triangles[i + 2]);
+                }
+                else
+                {
+                    Console.Write("");
                 }
             }
             return prunedTriangles.ToArray();

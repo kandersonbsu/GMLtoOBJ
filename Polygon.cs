@@ -8,11 +8,13 @@ namespace GMLtoOBJ
 {
     class Polygon
     {
+        public List<double> bounds;
         public List<double> verts;
         public List<double> uvs;
         public int[] triangles;
         public bool isConcave;
         public IPoint[] pointsFlattened;
+        public IPoint[] boundsFlattened;
         public string gmlID;
         public string parentID;
         public Polygon(List<double> verts)
@@ -50,6 +52,16 @@ namespace GMLtoOBJ
                 uvsReversed.Add(v);
             }
             this.uvs = uvsReversed;
+        }
+
+        public Point[] IPointsAsPoints()
+        {
+            if (pointsFlattened == null)
+                return null;
+            Point[] retVal = new Point[pointsFlattened.Length];
+            for (int i = 0; i < pointsFlattened.Length; ++i)
+                retVal[i] = new Point(pointsFlattened[i].X, pointsFlattened[i].Y);
+            return retVal;
         }
     }
 }
