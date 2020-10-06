@@ -231,7 +231,7 @@ namespace GMLtoOBJ
 
             //This is temporary in order to just get the roof
             if (surface.Name == XName.Get("WallSurface", buildingURL) || surface.Name == XName.Get("GroundSurface", buildingURL))
-                return;
+               return;
             //Get the lod2MultiSurface node
             var lod2MultiSurface = surface.Element(XName.Get("lod2MultiSurface", buildingURL));
             //Get the gml MultiSurface node
@@ -291,10 +291,12 @@ namespace GMLtoOBJ
             for(int i = 0; i < polygon.verts.Count; ++i)
             {
                 int index = Modulo(i, 3);
-                var p = polygon.verts[i];
-                var c = centerPoint[index];
-                var diff = p - c;
                 polygon.verts[i] = polygon.verts[i] - centerPoint[index];
+            }
+            for(int i = 0; i < polygon.bounds.Count; ++i)
+            {
+                int index = Modulo(i, 3);
+                polygon.bounds[i] = polygon.bounds[i] - centerPoint[index];
             }
         }
 
@@ -676,6 +678,7 @@ namespace GMLtoOBJ
                     bool convex;
                     if(xyArea >= xzArea && xyArea >= yzArea)
                     {
+                        p.boundsFlattened = TwoDimensionalBounds(p, "xy");
                         if (!IsClockwise(xy))
                         {
                             var pverts = p.verts;
@@ -694,6 +697,7 @@ namespace GMLtoOBJ
                     }
                     else if(xzArea >= xyArea && xzArea >= yzArea)
                     {
+                        p.boundsFlattened = TwoDimensionalBounds(p, "xz");
                         if (!IsClockwise(xz))
                         {
                             var pverts = p.verts;
@@ -712,6 +716,7 @@ namespace GMLtoOBJ
                     }
                     else
                     {
+                        p.boundsFlattened = TwoDimensionalBounds(p, "yz");
                         if (!IsClockwise(yz))
                         {
                             var pverts = p.verts;
@@ -859,16 +864,24 @@ namespace GMLtoOBJ
                 var yAverage = (firstTri.Y + secondTri.Y + thirdTri.Y) / 3;
 
                 Point p = new Point(xAverage, yAverage);
-                if(isInside(polygon.IPointsAsPoints(), p))
-                {
-                    prunedTriangles.Add(triangles[i]);
-                    prunedTriangles.Add(triangles[i + 1]);
-                    prunedTriangles.Add(triangles[i + 2]);
-                }
-                else
-                {
+                if (p.X > 18 && p.X < 19.0)
                     Console.Write("");
-                }
+                    /*
+                    if(IsInPolygon(polygon.boundsFlattened, p))
+                    {
+                        prunedTriangles.Add(triangles[i]);
+                        prunedTriangles.Add(triangles[i + 1]);
+                        prunedTriangles.Add(triangles[i + 2]);
+                    }*/
+                //if (isInside(polygon.IPointsAsPoints(), p))
+                //{
+                //    prunedTriangles.Add(triangles[i]);
+                //    prunedTriangles.Add(triangles[i + 1]);
+                //    prunedTriangles.Add(triangles[i + 2]);
+                //}
+                prunedTriangles.Add(triangles[i]);
+                prunedTriangles.Add(triangles[i + 1]);
+                prunedTriangles.Add(triangles[i + 2]);
             }
             return prunedTriangles.ToArray();
         }
@@ -955,6 +968,39 @@ namespace GMLtoOBJ
                 for (int i = 0; i < p.verts.Count - 1; i += 3)
                 {
                     retVal[i / 3] = new Point(p.verts[i + 1], p.verts[i + 2]);
+                }
+                return retVal;
+            }
+            else
+                return null;
+        }
+        static IPoint[] TwoDimensionalBounds(Polygon p, string components)
+        {
+            if (components.Length != 2)
+                return null;
+            IPoint[] retVal = new IPoint[p.bounds.Count / 3];
+            string comps = components.ToLower();
+            if (comps.Contains('x') && comps.Contains('y'))
+            {
+                for (int i = 0; i < p.bounds.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.bounds[i], p.bounds[i + 1]);
+                }
+                return retVal;
+            }
+            if (comps.Contains('x') && comps.Contains('z'))
+            {
+                for (int i = 0; i < p.bounds.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.bounds[i], p.bounds[i + 2]);
+                }
+                return retVal;
+            }
+            if (comps.Contains('y') && comps.Contains('z'))
+            {
+                for (int i = 0; i < p.bounds.Count - 1; i += 3)
+                {
+                    retVal[i / 3] = new Point(p.bounds[i + 1], p.bounds[i + 2]);
                 }
                 return retVal;
             }

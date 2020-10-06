@@ -22,12 +22,23 @@ namespace GMLtoOBJ
             this.verts = verts;
             isConcave = false;
             uvs = new List<double>();
+            bounds = new List<double>();
         }
 
         public Polygon()
         {
             verts = new List<double>();
+            isConcave = false;
             uvs = new List<double>();
+            bounds = new List<double>();
+        }
+
+        public Polygon(List<double> verts, List<double> bounds)
+        {
+            this.verts = verts;
+            isConcave = false;
+            uvs = new List<double>();
+            this.bounds = bounds;
         }
 
         public void ReverseVerts()
@@ -56,11 +67,11 @@ namespace GMLtoOBJ
 
         public Point[] IPointsAsPoints()
         {
-            if (pointsFlattened == null)
+            if (boundsFlattened == null)
                 return null;
-            Point[] retVal = new Point[pointsFlattened.Length];
-            for (int i = 0; i < pointsFlattened.Length; ++i)
-                retVal[i] = new Point(pointsFlattened[i].X, pointsFlattened[i].Y);
+            Point[] retVal = new Point[boundsFlattened.Length];
+            for (int i = 0; i < boundsFlattened.Length; ++i)
+                retVal[i] = new Point(boundsFlattened[i].X, boundsFlattened[i].Y);
             return retVal;
         }
     }
