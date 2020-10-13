@@ -12,11 +12,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="NetTopologySuite" Version="2.1.0" />
+    <PackageReference Include="NetTopologySuite.Features" Version="2.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="CoordinateSystems">
       <HintPath>bin\Debug\CoordinateSystems.dll</HintPath>
     </Reference>
     <Reference Include="DelaunatorSharp">
       <HintPath>bin\Debug\DelaunatorSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="NetTopologySuite.IO.ShapeFile">
+      <HintPath>bin\Debug\NetTopologySuite.IO.ShapeFile.dll</HintPath>
     </Reference>
     <Reference Include="Triangle">
       <HintPath>bin\Debug\Triangle.dll</HintPath>

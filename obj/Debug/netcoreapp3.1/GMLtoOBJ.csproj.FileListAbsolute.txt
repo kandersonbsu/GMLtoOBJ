@@ -34,3 +34,6 @@ C:\Users\kanderson\Desktop\GMLtoOBJ\bin\Debug\netcoreapp3.1\CoordinateSystems.dl
 C:\Users\kanderson\Desktop\GMLtoOBJ\bin\Debug\netcoreapp3.1\DelaunatorSharp.dll
 C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.Properties.Resources.resources
 C:\Users\kanderson\Desktop\GMLtoOBJ\obj\Debug\netcoreapp3.1\GMLtoOBJ.csproj.GenerateResource.cache
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\NetTopologySuite.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\NetTopologySuite.IO.ShapeFile.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Debug\netcoreapp3.1\NetTopologySuite.Features.dll

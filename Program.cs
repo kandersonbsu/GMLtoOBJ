@@ -5,6 +5,9 @@ using System.Xml.Linq;
 using DelaunatorSharp;
 using Cognitics.CoordinateSystems;
 using System.Numerics;
+using NetTopologySuite.IO;
+using NetTopologySuite;
+using NetTopologySuite.Features;
 
 namespace GMLtoOBJ
 {
@@ -15,7 +18,7 @@ namespace GMLtoOBJ
         static int BuildingCount;
         static void Main(string[] args)
         {
-             PathToFileFolder = args[0] == null ? "" : args[0];
+            PathToFileFolder = args[0] == null ? "" : args[0];
             var d = Path.GetDirectoryName(PathToFileFolder);
             PathToOutputFolder = args.Length > 1 ? args[1] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
             if (args[0] == null)
@@ -87,6 +90,31 @@ namespace GMLtoOBJ
                 }
                 System.Threading.Thread.Sleep(1000);
                 BuildingtoOBJ(buildings, path);
+                string filename = Path.GetFileNameWithoutExtension(path);
+                List<Feature> featureList = new List<Feature>();
+                foreach(Building b in buildings)
+                {
+                    Feature feat = new Feature();
+                    Dictionary<string, object> atts = new Dictionary<string, object>();
+                    string buildingName = "\\" + b.state + "_" + b.county + "_" + b.ubid + ".obj";
+                    if (buildingName == "\\__.obj")
+                        buildingName = "\\" + b.GetID() + ".obj";
+                    string origin = b.centerpoint == null ? b.latitude + " " + b.longitude : b.centerpoint[0] + " " + b.centerpoint[1] + " " + b.centerpoint[2];
+                    atts.Add("File Name", buildingName);
+                    atts.Add("Origin", origin);
+                    feat.Attributes = new AttributesTable(atts);
+                    feat.BoundingBox = new NetTopologySuite.Geometries.Envelope();
+                    if(b.centerpoint == null)
+                    {
+                        feat.Geometry = new NetTopologySuite.Geometries.Point(b.latitude, b.longitude);
+                    }
+                    else
+                    {
+                        feat.Geometry = new NetTopologySuite.Geometries.Point(b.centerpoint[0], b.centerpoint[1], b.centerpoint[2]);
+                    }
+                    featureList.Add(feat);
+                }
+                WriteBuildingsToShapefile(PathToOutputFolder + "\\" + filename, featureList);
             }
         }
 
@@ -126,7 +154,6 @@ namespace GMLtoOBJ
             var gmlEnvelope = XName.Get("Envelope", gml);
             var bldgFunction = XName.Get("function", building);
             var bldgMeasuredHeight = XName.Get("measuredHeight", building);
-            int i = 0;
             foreach (XElement node in child.Nodes())
             {
                 if (node.Name == bldgFunction)
@@ -165,9 +192,6 @@ namespace GMLtoOBJ
                 }
                 if (node.Name == bldgBoundedBy)
                 {
-                    ++i;
-                    if (i != 274)
-                        continue;
                     //Here is the root node to our building geometry. In LOD2, this is either walls, roofs, or floors. This will likely hit three times per building.  
                     LOD2Polygons(node, ref retVal);
                 }
@@ -228,10 +252,6 @@ namespace GMLtoOBJ
                 surface = element.Element(XName.Get("RoofSurface", buildingURL));
             if (surface == null)
                 return;
-
-            //This is temporary in order to just get the roof
-            if (surface.Name == XName.Get("WallSurface", buildingURL) || surface.Name == XName.Get("GroundSurface", buildingURL))
-               return;
             //Get the lod2MultiSurface node
             var lod2MultiSurface = surface.Element(XName.Get("lod2MultiSurface", buildingURL));
             //Get the gml MultiSurface node
@@ -866,22 +886,18 @@ namespace GMLtoOBJ
                 Point p = new Point(xAverage, yAverage);
                 if (p.X > 18 && p.X < 19.0)
                     Console.Write("");
-                    /*
                     if(IsInPolygon(polygon.boundsFlattened, p))
                     {
                         prunedTriangles.Add(triangles[i]);
                         prunedTriangles.Add(triangles[i + 1]);
                         prunedTriangles.Add(triangles[i + 2]);
-                    }*/
+                    }
                 //if (isInside(polygon.IPointsAsPoints(), p))
                 //{
                 //    prunedTriangles.Add(triangles[i]);
                 //    prunedTriangles.Add(triangles[i + 1]);
                 //    prunedTriangles.Add(triangles[i + 2]);
                 //}
-                prunedTriangles.Add(triangles[i]);
-                prunedTriangles.Add(triangles[i + 1]);
-                prunedTriangles.Add(triangles[i + 2]);
             }
             return prunedTriangles.ToArray();
         }
@@ -1006,6 +1022,25 @@ namespace GMLtoOBJ
             }
             else
                 return null;
+        }
+
+        static void WriteBuildingsToShapefile(string fileName, List<NetTopologySuite.Features.Feature> buildings)
+        {
+            if (File.Exists(fileName + ".shp"))
+                File.Delete(fileName + ".shp");
+            if (File.Exists(fileName + ".dbf"))
+                File.Delete(fileName + ".dbf");
+            if (File.Exists(fileName + ".dbf"))
+                File.Delete(fileName + ".dbf");
+
+            if (buildings.Count == 0)
+                return;
+
+            var outGeoFactory = NetTopologySuite.Geometries.GeometryFactory.Default;
+            var writer = new ShapefileDataWriter(fileName, outGeoFactory);
+            var outDBaseHeader = ShapefileDataWriter.GetHeader(buildings[0], buildings.Count);
+            writer.Header = outDBaseHeader;
+            writer.Write(buildings);
         }
     }
 }
