@@ -282,6 +282,7 @@ namespace GMLtoOBJ
                         //if (interior[0] == interior[interior.Count - 3] && interior[1] == interior[interior.Count - 2] && interior[2] == interior[interior.Count - 1])
                         //    interior.RemoveRange(interior.Count - 3, 3);
                         polygon.interior.Add(interior);
+                        polygon.verts.AddRange(interior);
                     }
                     else
                     {
@@ -290,9 +291,13 @@ namespace GMLtoOBJ
                         {
                             double d = double.Parse(s);
                             polygon.bounds.Add(d);
+                            polygon.verts.Add(d);
                         }
                         //if (polygon.bounds[0] == polygon.bounds[polygon.bounds.Count - 3] && polygon.bounds[1] == polygon.bounds[polygon.bounds.Count - 2] && polygon.bounds[2] == polygon.bounds[polygon.bounds.Count - 1])
+                        //{
                         //    polygon.bounds.RemoveRange(polygon.bounds.Count - 3, 3);
+                        //    polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
+                        //}
                     }
 
                 }
@@ -316,6 +321,14 @@ namespace GMLtoOBJ
             {
                 int index = Modulo(i, 3);
                 polygon.bounds[i] = polygon.bounds[i] - centerPoint[index];
+            }
+            foreach(var list in polygon.interior)
+            {
+                for(int i = 0; i < list.Count; ++i)
+                {
+                    int index = Modulo(i, 3);
+                    list[i] = list[i] - centerPoint[index];
+                }
             }
         }
 
@@ -422,8 +435,8 @@ namespace GMLtoOBJ
                             double d = double.Parse(s);
                             texture.textureCoordinates.Add(d);
                         }
-                        if (texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
-                            texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
+                        //if (texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
+                        //    texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
                         continue;
                     }
                 }
@@ -689,179 +702,67 @@ namespace GMLtoOBJ
             int iteration = 1;
             int progress = 0;
             var progressBar = new ProgressBar();
-            foreach(Building b in buildings)
+            int version = 0;
+            foreach(Building building in buildings)
             {
-                b.CreateSideUVs();
-                if (b.needsCoordinateTransform)
+                building.CreateSideUVs();
+                if (building.needsCoordinateTransform)
                 {
-                    for (int i = 0; i < b.sides.Count; ++i)
+                    for (int i = 0; i < building.sides.Count; ++i)
                     {
-                        Polygon p = b.sides[i];
-                        ProjectPolygon(ref p, b.latitude, b.longitude);
+                        Polygon p = building.sides[i];
+                        ProjectPolygon(ref p, building.latitude, building.longitude);
                     }
                 }
-                foreach(Polygon p in b.sides)
+                foreach(Polygon polygon in building.sides)
                 {
-                    var xy = TwoDimensionalPolygon(p, "xy");
-                    var xz = TwoDimensionalPolygon(p, "xz");
-                    var yz = TwoDimensionalPolygon(p, "yz");
-                    IPoint[] iPointArray = Largest2DPoint(xy, xz, yz);
+                    if (polygon.gmlID == "DEB_LOD2_UUID_b52b9dd4-5c58-4d37-87a2-1acee93e9271_a68cae5c-1c6a-41cd-8c27-b348df19d7e8_poly")
+                        Console.Write("");
+                    var xy = TwoDimensionalPolygon(polygon, "xy");
+                    var xz = TwoDimensionalPolygon(polygon, "xz");
+                    var yz = TwoDimensionalPolygon(polygon, "yz");
 
-                    bool isClockwise = IsClockwise(iPointArray);
-                    if (!IsClockwise(iPointArray))
-                        p.ReverseVerts();
-
-                    double[,] array = ListTo2DArray(p.bounds, "");
-                    DelaunayClient delaunayClient = new DelaunayClient(array);
-                    foreach(List<double> doubleList in p.interior)
-                    {
-                        var interior = ListTo2DArray(doubleList, "");
-                        delaunayClient.InsertConstrainedPolygon(interior);
-                    }
-                    delaunayClient.GatherTriangles(new double[0, 0], true, out p.delaunayVerts, out p.delaunayTriangles);
-                    p.ConvertDelaunay();
-                    continue;
-                    
-                    //Bounds flattened
-                    //var xy = TwoDimensionalPolygon(p, "xy");
-                    //var xz = TwoDimensionalPolygon(p, "xz");
-                    //var yz = TwoDimensionalPolygon(p, "yz");
-
-                    //Bounds area
                     var xyArea = PolygonArea(xy);
                     var xzArea = PolygonArea(xz);
                     var yzArea = PolygonArea(yz);
 
-                    DelaunayClient d;
-                    bool convex;
-                    
-                    if(xyArea >= xzArea && xyArea >= yzArea)
-                    {
-                        p.boundsFlattened = xy;
-                        //If the polygon isn't clockwise, reverse it
-                        if (!IsClockwise(xy))
-                        {
-                            Array.Reverse(xy);
-                            p.ReverseVerts();
-                        }
-                        //var array = ListTo2DArray(p.bounds, "");
-                        d = new DelaunayClient(array);
-                        //Add all constrained interior polygons if they exist
-                        foreach (List<double> doubleList in p.interior)
-                        {
-                            var interior = ListTo2DArray(doubleList, "");
-                            d.InsertConstrainedPolygon(interior);
-                        }
-                        //Now triangulate the polygon with the constraints. 
-                        var boundsArray = ListTo2DArray(p.bounds, "xy");
-                        //var verts = new double[0,0];
-                        //var tris = new int[0, 0];
-                        //d.GatherTriangles(new double[0,0], true, out verts, out tris);
-                        d.Dump("C:\\Users\\Kyle\\source\\repos\\GMLtoOBJ\\dumpfile.json");
-                    }
-                    else if (xzArea >= xyArea && xzArea >= yzArea)
-                    {
+                    string components = ((xyArea > xzArea) && (xyArea > yzArea)) ? "xy" : ((xzArea > xyArea) && (xzArea > yzArea)) ? "xz" : "yz";
 
-                    }
-                    else
+                    polygon.CreateVertUVDictionary();
+                    double[,] exterior = ListTo2DArray(polygon.bounds, components);
+                    polygon.CreateVertDictionary(ListTo2DArray(polygon.verts, components));
+                    double[,] bounds = CalculateBounds(exterior);
+                    DelaunayClient delaunayClient = new DelaunayClient(bounds, settings: (int)DelaunayClient.Option.REMOVE_EXTERIOR | (int)DelaunayClient.Option.REMOVE_HOLES);
+                    delaunayClient.InsertConstrainedPolygon(exterior);
+                    foreach(List<double> interior in polygon.interior)
                     {
-
+                        var interiorArray = ListTo2DArray(interior, components);
+                        delaunayClient.InsertConstrainedPolygon(interiorArray);
                     }
+                    double[,] empty = new double[0, 0];
+                    delaunayClient.GatherTriangles(empty, true, out polygon.delaunayVerts, out polygon.delaunayTriangles);
+                    polygon.ConvertDelaunay();
                 }
-                /*
-                foreach(Polygon p in b.sides)
-                {
-                    var xy = TwoDimensionalPolygon(p, "xy");
-                    var xz = TwoDimensionalPolygon(p, "xz");
-                    var yz = TwoDimensionalPolygon(p, "yz");
-
-                    var xyArea = PolygonArea(xy);
-                    var xzArea = PolygonArea(xz);
-                    var yzArea = PolygonArea(yz);
-                    Delaunator d;
-                    bool convex;
-                    if(xyArea >= xzArea && xyArea >= yzArea)
-                    {
-                        p.boundsFlattened = TwoDimensionalBounds(p, "xy");
-                        if (!IsClockwise(xy))
-                        {
-                            var pverts = p.verts;
-                            Array.Reverse(xy);
-                            p.ReverseVerts();
-                            d = new Delaunator(xy);
-                            int[] tris = InvertTriangles(d.Triangles);
-                            p.triangles = tris;
-                        }
-                        else
-                            d = new Delaunator(xy);
-                        p.pointsFlattened = xy;
-                        convex = IsConvex(xy);
-                        if (!convex)
-                            p.isConcave = true;
-                    }
-                    else if(xzArea >= xyArea && xzArea >= yzArea)
-                    {
-                        p.boundsFlattened = TwoDimensionalBounds(p, "xz");
-                        if (!IsClockwise(xz))
-                        {
-                            var pverts = p.verts;
-                            Array.Reverse(xz);
-                            p.ReverseVerts();
-                            d = new Delaunator(xz);
-                            int[] tris = InvertTriangles(d.Triangles);
-                            p.triangles = tris;
-                        }
-                        else
-                            d = new Delaunator(xz);
-                        p.pointsFlattened = xz;
-                        convex = IsConvex(xz);
-                        if (!convex)
-                            p.isConcave = true;
-                    }
-                    else
-                    {
-                        p.boundsFlattened = TwoDimensionalBounds(p, "yz");
-                        if (!IsClockwise(yz))
-                        {
-                            var pverts = p.verts;
-                            Array.Reverse(yz);
-                            p.ReverseVerts();
-                            d = new Delaunator(yz);
-                            int[] tris = InvertTriangles(d.Triangles);
-                            p.triangles = tris;
-                        }
-                        else
-                            d = new Delaunator(yz);
-                        p.pointsFlattened = yz;
-                        convex = IsConvex(yz);
-                        if (!convex)
-                            p.isConcave = true;
-                    }
-                    if (p.triangles == null)
-                        p.triangles = d.Triangles;
-                    if (p.isConcave)
-                        p.triangles = TriangulatePolygon(p);                                                                                                                                                                                                                                                                                                                                                                                                   
-                }*/
                 string filename = Path.GetFileName(path);
                 var filenameNoExtension = filename.Replace(".gml", "");
-                string buildingName = "\\" + b.state + "_" + b.county + "_" + b.ubid + ".obj";
+                string buildingName = "\\" + building.state + "_" + building.county + "_" + building.ubid + ".obj";
                 if (buildingName == "\\__.obj")
-                    buildingName = "\\" + b.GetID() + ".obj";
+                    buildingName = "\\" + building.GetID() + ".obj";
                 ++iteration;
                 string buildingMTL = buildingName.Replace(".obj", ".mtl");
-                CreateMTLFile(b.textures, PathToOutputFolder + buildingMTL);
+                CreateMTLFile(building.textures, PathToOutputFolder + buildingMTL);
                 buildingMTL = buildingMTL.Trim('\\');
                 using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
                 {
                     int vtOffset = 0;
                     sw.WriteLine("Produced by Cognitics");
                     sw.WriteLine(DateTime.Now);
-                    string origin = b.centerpoint == null ? "ORIGIN: " + b.latitude + " " + b.longitude : "ORIGIN: " + b.centerpoint[0] + " " + b.centerpoint[1] + " " + b.centerpoint[2];
+                    string origin = building.centerpoint == null ? "ORIGIN: " + building.latitude + " " + building.longitude : "ORIGIN: " + building.centerpoint[0] + " " + building.centerpoint[1] + " " + building.centerpoint[2];
                     sw.WriteLine(origin);
                     sw.WriteLine("mtllib " + buildingMTL);
                     sw.WriteLine("");
                     int triangleOffset = 1;
-                    foreach (Polygon p in b.sides)
+                    foreach (Polygon p in building.sides)
                     {
                         bool vertexTextures = false;
                         sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
@@ -904,7 +805,6 @@ namespace GMLtoOBJ
                 }
                 ++progress;
                 progressBar.Report((double)progress / BuildingCount);
-                return;
             }
             System.Threading.Thread.Sleep(1000);
             Console.WriteLine();
@@ -928,83 +828,6 @@ namespace GMLtoOBJ
                     sw.WriteLine();
                 }
             }
-        }
-
-        static int[] InvertTriangles(int[] triangles)
-        {
-            int[] retval = new int[triangles.Length];
-            for(int i = 0; i < triangles.Length; i += 3)
-            {
-                retval[i] = triangles[i + 2];
-                retval[i + 1] = triangles[i + 1];
-                retval[i + 2] = triangles[i];
-            }
-            return retval;
-        }
-
-        static bool IsClockwise(IPoint[] points)
-        {
-            double sum = 0.0;
-            for(int i = 0; i < points.Length; ++i)
-            {
-                IPoint i1 = points[i];
-                IPoint i2 = points[Modulo(i + 1, points.Length)];
-                sum += (i2.X - i1.X) * (i2.Y + i1.Y);
-            }
-            return sum > 0.0;
-        }
-
-        static int[] TriangulatePolygon(Polygon polygon)
-        {
-            int[] triangles = polygon.triangles;
-            List<int> prunedTriangles = new List<int>();
-            for(int i = 0; i < triangles.Length; i += 3)
-            {
-                //find the mid point, if this triangle is in the polygon, add these to the prunedTriangle list. 
-                var firstTri = polygon.pointsFlattened[triangles[i]];
-                var secondTri = polygon.pointsFlattened[triangles[i + 1]];
-                var thirdTri = polygon.pointsFlattened[triangles[i + 2]];
-
-                var xAverage = (firstTri.X + secondTri.X + thirdTri.X) / 3;
-                var yAverage = (firstTri.Y + secondTri.Y + thirdTri.Y) / 3;
-
-                Point p = new Point(xAverage, yAverage);
-                if (p.X > 18 && p.X < 19.0)
-                    Console.Write("");
-                    if(IsInPolygon(polygon.boundsFlattened, p))
-                    {
-                        prunedTriangles.Add(triangles[i]);
-                        prunedTriangles.Add(triangles[i + 1]);
-                        prunedTriangles.Add(triangles[i + 2]);
-                    }
-                //if (isInside(polygon.IPointsAsPoints(), p))
-                //{
-                //    prunedTriangles.Add(triangles[i]);
-                //    prunedTriangles.Add(triangles[i + 1]);
-                //    prunedTriangles.Add(triangles[i + 2]);
-                //}
-            }
-            return prunedTriangles.ToArray();
-        }
-
-        static bool IsConvex(IPoint[] points)
-        {
-            if (points.Length < 4)
-                return true;
-            bool sign = false;
-            for(int i = 0; i < points.Length; ++i)
-            {
-                double dx1 = points[(i + 2) % points.Length].X - points[(i + 1) % points.Length].X;
-                double dy1 = points[(i + 2) % points.Length].Y - points[(i + 1) % points.Length].Y;
-                double dx2 = points[i].X - points[(i + 1) % points.Length].X;
-                double dy2 = points[i].Y - points[(i + 1) % points.Length].Y;
-                double crossproduct = dx1 * dy2 - dy1 * dx2;
-                if (i == 0)
-                    sign = crossproduct > 0;
-                else if (sign != (crossproduct > 0))
-                    return false;
-            }
-            return true;
         }
 
         static int Modulo(int a, int b)
@@ -1128,17 +951,6 @@ namespace GMLtoOBJ
             writer.Write(buildings);
         }
 
-        static double[,] PointsToArray(IPoint[] points)
-        {
-            double[,] retVal = new double[points.Length, 2];
-            for(int i = 0; i < points.Length - 1; ++i)
-            {
-                retVal[i, 0] = points[i].X;
-                retVal[i, 1] = points[i].Y;
-            }
-            return retVal;
-        }
-
         static double[,] ListTo2DArray(List<double> points, string components)
         {
             if (points.Count % 3 != 0)
@@ -1182,13 +994,39 @@ namespace GMLtoOBJ
                 return returnVal;
             }
 
-            double[,] retVal = new double[pointsTrimmed.Count / 2, 2];
+            double[,] retVal = new double[pointsTrimmed.Count / 2, 3];
             for(int i = 0; i < pointsTrimmed.Count - 1; i += 2)
             {
                 retVal[i / 2, 0] = pointsTrimmed[i];
                 retVal[i / 2, 1] = pointsTrimmed[i + 1];
+                retVal[i / 2, 2] = 0;
             }
             return retVal;
+        }
+
+        static double[,] CalculateBounds(double[,] polygon)
+        {
+            double x0 = 10000000;
+            double x1 = -10000000;
+            double y0 = 10000000;
+            double y1 = -10000000;
+            for (int i = 0; i <= polygon.GetUpperBound(0); i++)
+            {
+                if (x0 > polygon[i, 0])
+                    x0 = polygon[i, 0];
+                if (x1 < polygon[i, 0])
+                    x1 = polygon[i, 0];
+                if (y0 > polygon[i, 1])
+                    y0 = polygon[i, 1];
+                if (y1 < polygon[i, 1])
+                    y1 = polygon[i, 1];
+            }
+            x0 -= (2 + (x1 - x0) / 10);
+            y0 -= (2 + (y1 - y0) / 10);
+            x1 += (2 + (x1 - x0) / 10);
+            y1 += (2 + (y1 - y0) / 10);
+            double[,] boundary = { { x0, y0, 0 }, { x1, y0, 0 }, { x1, y1, 0 }, { x0, y1, 0 } };
+            return boundary;
         }
     }
 }

@@ -20,6 +20,8 @@ namespace GMLtoOBJ
         public IPoint[] boundsFlattened;
         public string gmlID;
         public string parentID;
+        public Dictionary<string, string> vertsToUvs;
+        public Dictionary<string, string> vertsToFlattenedVerts;
         public Polygon(List<double> verts)
         {
             this.verts = verts;
@@ -80,24 +82,25 @@ namespace GMLtoOBJ
             this.uvs = uvsReversed;
         }
 
-        public Point[] IPointsAsPoints()
-        {
-            if (boundsFlattened == null)
-                return null;
-            Point[] retVal = new Point[boundsFlattened.Length];
-            for (int i = 0; i < boundsFlattened.Length; ++i)
-                retVal[i] = new Point(boundsFlattened[i].X, boundsFlattened[i].Y);
-            return retVal;
-        }
-
         public void ConvertDelaunay()
         {
+            //We have a map of 2d points and 3d points. 
+            //We need to add the 3d points to verts in the order of the 2d delaunay verts. 
+            //Iterate through the delaunay verts using the delaunay verts as a key into points adding the 3d values in to verts. 
             verts.Clear();
             for(int i = 0; i < delaunayVerts.GetLength(0); ++i)
             {
-                verts.Add(delaunayVerts[i, 0]);
-                verts.Add(delaunayVerts[i, 1]);
-                verts.Add(delaunayVerts[i, 2]);
+                string key = string.Format("{0} {1}", delaunayVerts[i, 0], delaunayVerts[i, 1]);
+                string value = GetValueFromDictionary(key, vertsToFlattenedVerts);
+                //vertsToFlattenedVerts.TryGetValue(key, out value);
+                if (value == null)
+                    continue;
+                var valueArray = value.Split(' ');
+                foreach(string s in valueArray)
+                {
+                    double d = double.Parse(s);
+                    verts.Add(d);
+                }
             }
             triangles = new int[delaunayTriangles.Length];
             int j = 0;
@@ -106,6 +109,82 @@ namespace GMLtoOBJ
                 triangles[j] = delaunayTriangles[i, 0];
                 triangles[j + 1] = delaunayTriangles[i, 1];
                 triangles[j + 2] = delaunayTriangles[i, 2];
+            }
+            if (uvs.Count < 2)
+                return;
+            //iterate through the verts. 
+            //Stringify the verts. 
+            //use the stringify verts as a key into the dictionary. 
+            //Parse the uvs into doubles, add them to a list of doubles for the UVs. 
+            //Once done, assign the new uv list to the current uv list. 
+            List<double> newUVs = new List<double>();
+            for(int i = 0; i < verts.Count; i += 3)
+            {
+                string vertString = string.Format("{0} {1} {2}", verts[i], verts[i + 1], verts[i + 2]);
+                string uvString;
+                vertsToUvs.TryGetValue(vertString, out uvString);
+                if (uvString == null)
+                    continue;
+                var uvArray = uvString.Split(' ');
+                foreach(var uv in uvArray)
+                {
+                    double d = double.Parse(uv);
+                    newUVs.Add(d);
+                }
+            }
+            uvs.Clear();
+            uvs = newUVs;
+        }
+
+        private string GetValueFromDictionary(string key, Dictionary<string, string> dictionary)
+        {
+            double diff = 0.001;
+            var array = key.Split(' ');
+            double d1 = double.Parse(array[0]);
+            double d2 = double.Parse(array[1]);
+            foreach (KeyValuePair<string, string> kvp in dictionary)
+            {
+                var kvpArray = kvp.Key.Split(' ');
+                double val1 = double.Parse(kvpArray[0]);
+                double val2 = double.Parse(kvpArray[1]);
+                if (Math.Abs(d1 - val1) < diff && Math.Abs(d2 - val2) < diff)
+                    return kvp.Value;
+            }
+            return null;
+        }
+
+        public void CreateVertUVDictionary()
+        {
+            if (uvs.Count < 2)
+                return;
+            vertsToUvs = new Dictionary<string, string>();
+            int j = 0;
+            for (int i = 0; i < verts.Count; i += 3, j += 2)
+            {
+                //stringify the verts
+                string vertString = string.Format("{0} {1} {2}", verts[i], verts[i + 1], verts[i + 2]);
+
+                //stringify the uvs
+                string uvString = string.Format("{0} {1}", uvs[j], uvs[j + 1]);
+                if (vertsToUvs.ContainsKey(vertString))
+                    continue;
+                vertsToUvs.Add(vertString, uvString);
+            }
+        }
+
+        public void CreateVertDictionary(double[,] flattenedVerts)
+        {
+            if (verts.Count < 3)
+                return;
+            vertsToFlattenedVerts = new Dictionary<string, string>();
+            int j = 0;
+            for(int i = 0; i < verts.Count; i += 3, ++j)
+            {
+                string flatVertString = string.Format("{0} {1}", flattenedVerts[j, 0], flattenedVerts[j, 1]);
+                string vertString = string.Format("{0} {1} {2}", verts[i], verts[i + 1], verts[i + 2]);
+                if (vertsToFlattenedVerts.ContainsKey(flatVertString))
+                    continue;
+                vertsToFlattenedVerts.Add(flatVertString, vertString);
             }
         }
     }
