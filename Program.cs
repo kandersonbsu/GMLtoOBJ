@@ -8,6 +8,7 @@ using System.Numerics;
 using NetTopologySuite.IO;
 using NetTopologySuite;
 using NetTopologySuite.Features;
+using System.Threading;
 
 namespace GMLtoOBJ
 {
@@ -16,15 +17,34 @@ namespace GMLtoOBJ
         static string PathToFileFolder;
         static string PathToOutputFolder;
         static int BuildingCount;
+        static int numThreads = 0;
         static void Main(string[] args)
         {
-            PathToFileFolder = args[0] == null ? "" : args[0];
+            //args[0] == threads
+            //args[1] == input folder
+            //args[2] == output folder
+            PathToFileFolder = args[1] == null ? "" : args[1];
             var d = Path.GetDirectoryName(PathToFileFolder);
-            PathToOutputFolder = args.Length > 1 ? args[1] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
+            PathToOutputFolder = args.Length > 2 ? args[2] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
             if (args[0] == null)
             {
                 PrintUsage();
                 return;
+            }
+            else
+            {
+                try
+                {
+                    int stringparse = int.Parse(args[0]);
+                    numThreads = stringparse;
+                    if (numThreads <= 0)
+                        numThreads = 1;
+                    ThreadPool.SetMaxThreads(numThreads, numThreads);
+                }
+                catch (FormatException)
+                {
+                    Console.WriteLine("Thread argument must be an integer.");
+                }
             }
             try
             {
@@ -51,8 +71,9 @@ namespace GMLtoOBJ
         static void PrintUsage()
         {
             Console.Out.WriteLine("CityGML to OBJ Converter.");
-            Console.Out.WriteLine("GMLtoOBJ [Path to file/folder] [Path to output folder.");
+            Console.Out.WriteLine("GMLtoOBJ [Number of threads] [Path to file/folder] [Path to output folder].");
             Console.Out.WriteLine("If no output Folder is specified, the default will create an output folder in the input directory.");
+            Console.Out.WriteLine("If no threads are specified, it will default to 1.");
         }
 
         static void OpenFile(string path)
@@ -279,8 +300,6 @@ namespace GMLtoOBJ
                         List<double> interior = new List<double>();
                         foreach (string s in rawValues)
                             interior.Add(double.Parse(s));
-                        //if (interior[0] == interior[interior.Count - 3] && interior[1] == interior[interior.Count - 2] && interior[2] == interior[interior.Count - 1])
-                        //    interior.RemoveRange(interior.Count - 3, 3);
                         polygon.interior.Add(interior);
                         polygon.verts.AddRange(interior);
                     }
@@ -293,11 +312,6 @@ namespace GMLtoOBJ
                             polygon.bounds.Add(d);
                             polygon.verts.Add(d);
                         }
-                        //if (polygon.bounds[0] == polygon.bounds[polygon.bounds.Count - 3] && polygon.bounds[1] == polygon.bounds[polygon.bounds.Count - 2] && polygon.bounds[2] == polygon.bounds[polygon.bounds.Count - 1])
-                        //{
-                        //    polygon.bounds.RemoveRange(polygon.bounds.Count - 3, 3);
-                        //    polygon.verts.RemoveRange(polygon.verts.Count - 3, 3);
-                        //}
                     }
 
                 }
@@ -435,8 +449,6 @@ namespace GMLtoOBJ
                             double d = double.Parse(s);
                             texture.textureCoordinates.Add(d);
                         }
-                        //if (texture.textureCoordinates[0] == texture.textureCoordinates[texture.textureCoordinates.Count - 2] && texture.textureCoordinates[1] == texture.textureCoordinates[texture.textureCoordinates.Count - 1])
-                        //    texture.textureCoordinates.RemoveRange(texture.textureCoordinates.Count - 2, 2);
                         continue;
                     }
                 }
@@ -505,139 +517,6 @@ namespace GMLtoOBJ
             }
         }
 
-        /// <summary>
-        /// New IsInPolygon code
-        /// </summary>
-        /// <param name="values"></param>
-        /// <returns></returns>
-        // Given three colinear points p, q, r,  
-        // the function checks if point q lies 
-        // on line segment 'pr' 
-        static bool onSegment(Point p, Point q, Point r)
-        {
-            if (q.X <= Math.Max(p.X, r.X) &&
-                q.X >= Math.Min(p.X, r.X) &&
-                q.Y <= Math.Max(p.Y, r.Y) &&
-                q.Y >= Math.Min(p.Y, r.Y))
-            {
-                return true;
-            }
-            return false;
-        }
-
-        // To find orientation of ordered triplet (p, q, r). 
-        // The function returns following values 
-        // 0 --> p, q and r are colinear 
-        // 1 --> Clockwise 
-        // 2 --> Counterclockwise 
-        static int orientation(Point p, Point q, Point r)
-        {
-            double val = (q.Y - p.Y) * (r.X - q.X) - (q.X - p.X) * (r.Y - q.Y);
-
-            if (val == 0)
-            {
-                return 0; // colinear 
-            }
-            return (val > 0) ? 1 : 2; // clock or counterclock wise 
-        }
-
-        // The function that returns true if  
-        // line segment 'p1q1' and 'p2q2' intersect. 
-        static bool doIntersect(Point p1, Point q1,
-                                Point p2, Point q2)
-        {
-            // Find the four orientations needed for  
-            // general and special cases 
-            int o1 = orientation(p1, q1, p2);
-            int o2 = orientation(p1, q1, q2);
-            int o3 = orientation(p2, q2, p1);
-            int o4 = orientation(p2, q2, q1);
-
-            // General case 
-            if (o1 != o2 && o3 != o4)
-            {
-                return true;
-            }
-
-            // Special Cases 
-            // p1, q1 and p2 are colinear and 
-            // p2 lies on segment p1q1 
-            if (o1 == 0 && onSegment(p1, p2, q1))
-            {
-                return true;
-            }
-
-            // p1, q1 and p2 are colinear and 
-            // q2 lies on segment p1q1 
-            if (o2 == 0 && onSegment(p1, q2, q1))
-            {
-                return true;
-            }
-
-            // p2, q2 and p1 are colinear and 
-            // p1 lies on segment p2q2 
-            if (o3 == 0 && onSegment(p2, p1, q2))
-            {
-                return true;
-            }
-
-            // p2, q2 and q1 are colinear and 
-            // q1 lies on segment p2q2 
-            if (o4 == 0 && onSegment(p2, q1, q2))
-            {
-                return true;
-            }
-
-            // Doesn't fall in any of the above cases 
-            return false;
-        }
-
-        // Returns true if the point p lies  
-        // inside the polygon[] with n vertices 
-        static bool isInside(Point[] polygon, Point p)
-        {
-            int n = polygon.Length;
-            // There must be at least 3 vertices in polygon[] 
-            if (n < 3)
-            {
-                return false;
-            }
-
-            // Create a point for line segment from p to infinite 
-            Point extreme = new Point(10000, p.Y);
-
-            // Count intersections of the above line  
-            // with sides of polygon 
-            int count = 0, i = 0;
-            do
-            {
-                int next = (i + 1) % n;
-
-                // Check if the line segment from 'p' to  
-                // 'extreme' intersects with the line  
-                // segment from 'polygon[i]' to 'polygon[next]' 
-                if (doIntersect(polygon[i],
-                                polygon[next], p, extreme))
-                {
-                    // If the point 'p' is colinear with line  
-                    // segment 'i-next', then check if it lies  
-                    // on segment. If it lies, return true, otherwise false 
-                    if (orientation(polygon[i], p, polygon[next]) == 0)
-                    {
-                        return onSegment(polygon[i], p,
-                                         polygon[next]);
-                    }
-                    count++;
-                }
-                i = next;
-            } while (i != 0);
-
-            // Return true if count is odd, false otherwise 
-            return (count % 2 == 1); // Same as (count%2 == 1) 
-        }
-
-
-        //End of new IsInPolygon code
         static Vector3 ParseColorValue(string[] values)
         {
             if (values.Length != 3)
@@ -649,167 +528,169 @@ namespace GMLtoOBJ
             return retVal;
         }
 
-        static bool IsInPolygon(IPoint[] polygon, IPoint point)
-        {
-            IPoint p1, p2;
-            bool inside = false;
-            if (polygon.Length < 3)
-                return false;
-            var oldPoint = new Point(polygon[polygon.Length - 1].X, polygon[polygon.Length - 1].Y);
-            for(int i = 0; i < polygon.Length; ++i)
-            {
-                var newPoint = new Point(polygon[i].X, polygon[i].Y);
-
-                if(newPoint.X > oldPoint.X)
-                {
-                    p1 = oldPoint;
-                    p2 = newPoint;
-                }
-                else
-                {
-                    p1 = newPoint;
-                    p2 = oldPoint;
-                }
-                if((newPoint.X < point.X) == (point.X <= oldPoint.X) && (point.Y - p1.Y) * (p2.X - p1.X) < (p2.Y - p1.Y)*(point.X - p1.X))
-                {
-                    inside = !inside;
-                }
-                oldPoint = newPoint;
-            }
-            return inside;
-        }
-
-        /**
-         * Delete this after use!!
-         */
-         static IPoint[] Largest2DPoint(IPoint[] xy, IPoint[] xz, IPoint[] yz)
-        {
-            var xyArea = PolygonArea(xy);
-            var xzArea = PolygonArea(xz);
-            var yzArea = PolygonArea(yz);
-
-            if (xyArea > xzArea && xyArea > yzArea)
-                return xy;
-            if (xzArea > xyArea && xzArea > yzArea)
-                return xz;
-            else
-                return yz;
-        }
         static void BuildingtoOBJ(List<Building> buildings, string path)
         {
+            var timer = new System.Diagnostics.Stopwatch();
+            timer.Start();
             Console.WriteLine("");
             Console.WriteLine("Creating OBJ files from Buildings:");
             int iteration = 1;
             int progress = 0;
             var progressBar = new ProgressBar();
-            int version = 0;
+            //threaded
             foreach(Building building in buildings)
             {
-                building.CreateSideUVs();
-                if (building.needsCoordinateTransform)
-                {
-                    for (int i = 0; i < building.sides.Count; ++i)
-                    {
-                        Polygon p = building.sides[i];
-                        ProjectPolygon(ref p, building.latitude, building.longitude);
-                    }
-                }
-                foreach(Polygon polygon in building.sides)
-                {
-                    if (polygon.gmlID == "DEB_LOD2_UUID_b52b9dd4-5c58-4d37-87a2-1acee93e9271_a68cae5c-1c6a-41cd-8c27-b348df19d7e8_poly")
-                        Console.Write("");
-                    var xy = TwoDimensionalPolygon(polygon, "xy");
-                    var xz = TwoDimensionalPolygon(polygon, "xz");
-                    var yz = TwoDimensionalPolygon(polygon, "yz");
-
-                    var xyArea = PolygonArea(xy);
-                    var xzArea = PolygonArea(xz);
-                    var yzArea = PolygonArea(yz);
-
-                    string components = ((xyArea > xzArea) && (xyArea > yzArea)) ? "xy" : ((xzArea > xyArea) && (xzArea > yzArea)) ? "xz" : "yz";
-
-                    polygon.CreateVertUVDictionary();
-                    double[,] exterior = ListTo2DArray(polygon.bounds, components);
-                    polygon.CreateVertDictionary(ListTo2DArray(polygon.verts, components));
-                    double[,] bounds = CalculateBounds(exterior);
-                    DelaunayClient delaunayClient = new DelaunayClient(bounds, settings: (int)DelaunayClient.Option.REMOVE_EXTERIOR | (int)DelaunayClient.Option.REMOVE_HOLES);
-                    delaunayClient.InsertConstrainedPolygon(exterior);
-                    foreach(List<double> interior in polygon.interior)
-                    {
-                        var interiorArray = ListTo2DArray(interior, components);
-                        delaunayClient.InsertConstrainedPolygon(interiorArray);
-                    }
-                    double[,] empty = new double[0, 0];
-                    delaunayClient.GatherTriangles(empty, true, out polygon.delaunayVerts, out polygon.delaunayTriangles);
-                    polygon.ConvertDelaunay();
-                }
-                string filename = Path.GetFileName(path);
-                var filenameNoExtension = filename.Replace(".gml", "");
-                string buildingName = "\\" + building.state + "_" + building.county + "_" + building.ubid + ".obj";
-                if (buildingName == "\\__.obj")
-                    buildingName = "\\" + building.GetID() + ".obj";
-                ++iteration;
-                string buildingMTL = buildingName.Replace(".obj", ".mtl");
-                CreateMTLFile(building.textures, PathToOutputFolder + buildingMTL);
-                buildingMTL = buildingMTL.Trim('\\');
-                using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
-                {
-                    int vtOffset = 0;
-                    sw.WriteLine("Produced by Cognitics");
-                    sw.WriteLine(DateTime.Now);
-                    string origin = building.centerpoint == null ? "ORIGIN: " + building.latitude + " " + building.longitude : "ORIGIN: " + building.centerpoint[0] + " " + building.centerpoint[1] + " " + building.centerpoint[2];
-                    sw.WriteLine(origin);
-                    sw.WriteLine("mtllib " + buildingMTL);
-                    sw.WriteLine("");
-                    int triangleOffset = 1;
-                    foreach (Polygon p in building.sides)
-                    {
-                        bool vertexTextures = false;
-                        sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
-                        for (int i = 0; i < p.verts.Count - 1; i += 3)
-                        {
-                            sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
-                        }
-                        for(int i = 0; i < p.uvs.Count - 1; i += 2)
-                        {
-                            vertexTextures = true;
-                            sw.WriteLine("vt " + p.uvs[i] + " " + p.uvs[i + 1]);
-                        }
-                        if (!vertexTextures)
-                            vtOffset -= (p.verts.Count / 3);
-                        if (vertexTextures)
-                        {
-                            sw.WriteLine("usemtl " + p.gmlID);
-                            for (int i = 0; i < p.triangles.Length; i += 3)
-                            {
-                                int firstV = p.triangles[i] + triangleOffset;
-                                int secondV = p.triangles[i + 1] + triangleOffset;
-                                int thirdV = p.triangles[i + 2] + triangleOffset;
-
-                                int firstVT = p.triangles[i] + triangleOffset + vtOffset;
-                                int secondVT = p.triangles[i + 1] + triangleOffset + vtOffset;
-                                int thirdVT = p.triangles[i + 2] + triangleOffset + vtOffset;
-                                sw.WriteLine("f " + firstV + "/" + firstVT + " " + secondV + "/" + secondVT + " " + thirdV + "/" + thirdVT);
-                            }
-                        }
-                        else
-                        {
-                            for (int i = 0; i < p.triangles.Length; i += 3)
-                            {
-                                sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
-                            }
-                        }
-                        triangleOffset += p.verts.Count / 3;
-                        sw.WriteLine();
-                    }
-                }
+                StartBuildingThread(building, path);
                 ++progress;
                 progressBar.Report((double)progress / BuildingCount);
             }
             System.Threading.Thread.Sleep(1000);
             Console.WriteLine();
+            var timeSpan = timer.Elapsed;
+            Console.WriteLine("Elapsed Time: " + timeSpan.ToString(@"m\:ss\.fff"));
         }
 
+        static Thread StartBuildingThread(Building building, string path)
+        {
+            var thread = new Thread(() => WriteBuildingToOBJ(building, path));
+            thread.Start();
+            return thread;
+        }
+
+        static Thread StartPolygonThread(Polygon polygon)
+        {
+            var thread = new Thread(() => TriangulatePolygon(polygon));
+            thread.Start();
+            return thread;
+        }
+        static void WriteBuildingToOBJ(Building building, string path)
+        {
+            building.CreateSideUVs();
+            if (building.needsCoordinateTransform)
+            {
+                for (int i = 0; i < building.sides.Count; ++i)
+                {
+                    Polygon p = building.sides[i];
+                    ProjectPolygon(ref p, building.latitude, building.longitude);
+                }
+            }
+            foreach (Polygon polygon in building.sides)
+            {
+                StartPolygonThread(polygon);
+                var xy = TwoDimensionalPolygon(polygon, "xy");
+                var xz = TwoDimensionalPolygon(polygon, "xz");
+                var yz = TwoDimensionalPolygon(polygon, "yz");
+
+                var xyArea = PolygonArea(xy);
+                var xzArea = PolygonArea(xz);
+                var yzArea = PolygonArea(yz);
+
+                string components = ((xyArea > xzArea) && (xyArea > yzArea)) ? "xy" : ((xzArea > xyArea) && (xzArea > yzArea)) ? "xz" : "yz";
+
+                polygon.CreateVertUVDictionary();
+                double[,] exterior = ListTo2DArray(polygon.bounds, components);
+                polygon.CreateVertDictionary(ListTo2DArray(polygon.verts, components));
+                double[,] bounds = CalculateBounds(exterior);
+                DelaunayClient delaunayClient = new DelaunayClient(bounds, settings: (int)DelaunayClient.Option.REMOVE_EXTERIOR | (int)DelaunayClient.Option.REMOVE_HOLES);
+                delaunayClient.InsertConstrainedPolygon(exterior);
+                foreach (List<double> interior in polygon.interior)
+                {
+                    var interiorArray = ListTo2DArray(interior, components);
+                    delaunayClient.InsertConstrainedPolygon(interiorArray);
+                }
+                double[,] empty = new double[0, 0];
+                delaunayClient.GatherTriangles(empty, true, out polygon.delaunayVerts, out polygon.delaunayTriangles);
+                polygon.ConvertDelaunay();
+
+            }
+            string filename = Path.GetFileName(path);
+            var filenameNoExtension = filename.Replace(".gml", "");
+            string buildingName = "\\" + building.state + "_" + building.county + "_" + building.ubid + ".obj";
+            if (buildingName == "\\__.obj")
+                buildingName = "\\" + building.GetID() + ".obj";
+            string buildingMTL = buildingName.Replace(".obj", ".mtl");
+            CreateMTLFile(building.textures, PathToOutputFolder + buildingMTL);
+            buildingMTL = buildingMTL.Trim('\\');
+            using (StreamWriter sw = File.CreateText(PathToOutputFolder + buildingName))
+            {
+                int vtOffset = 0;
+                sw.WriteLine("Produced by Cognitics");
+                sw.WriteLine(DateTime.Now);
+                string origin = building.centerpoint == null ? "ORIGIN: " + building.latitude + " " + building.longitude : "ORIGIN: " + building.centerpoint[0] + " " + building.centerpoint[1] + " " + building.centerpoint[2];
+                sw.WriteLine(origin);
+                sw.WriteLine("mtllib " + buildingMTL);
+                sw.WriteLine("");
+                int triangleOffset = 1;
+                foreach (Polygon p in building.sides)
+                {
+                    bool vertexTextures = false;
+                    sw.WriteLine("# PolygonID " + p.gmlID + " ParentID " + p.parentID);
+                    for (int i = 0; i < p.verts.Count - 1; i += 3)
+                    {
+                        sw.WriteLine("v " + p.verts[i] + " " + p.verts[i + 1] + " " + p.verts[i + 2]);
+                    }
+                    for (int i = 0; i < p.uvs.Count - 1; i += 2)
+                    {
+                        vertexTextures = true;
+                        sw.WriteLine("vt " + p.uvs[i] + " " + p.uvs[i + 1]);
+                    }
+                    if (!vertexTextures)
+                        vtOffset -= (p.verts.Count / 3);
+                    if (vertexTextures)
+                    {
+                        sw.WriteLine("usemtl " + p.gmlID);
+                        for (int i = 0; i < p.triangles.Length; i += 3)
+                        {
+                            int firstV = p.triangles[i] + triangleOffset;
+                            int secondV = p.triangles[i + 1] + triangleOffset;
+                            int thirdV = p.triangles[i + 2] + triangleOffset;
+
+                            int firstVT = p.triangles[i] + triangleOffset + vtOffset;
+                            int secondVT = p.triangles[i + 1] + triangleOffset + vtOffset;
+                            int thirdVT = p.triangles[i + 2] + triangleOffset + vtOffset;
+                            sw.WriteLine("f " + firstV + "/" + firstVT + " " + secondV + "/" + secondVT + " " + thirdV + "/" + thirdVT);
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < p.triangles.Length; i += 3)
+                        {
+                            sw.WriteLine("f " + (p.triangles[i] + triangleOffset) + " " + (p.triangles[i + 1] + triangleOffset) + " " + (p.triangles[i + 2] + triangleOffset));
+                        }
+                    }
+                    triangleOffset += p.verts.Count / 3;
+                    sw.WriteLine();
+                }
+            }
+        }
+
+        static void TriangulatePolygon(Polygon polygon)
+        {
+            var xy = TwoDimensionalPolygon(polygon, "xy");
+            var xz = TwoDimensionalPolygon(polygon, "xz");
+            var yz = TwoDimensionalPolygon(polygon, "yz");
+
+            var xyArea = PolygonArea(xy);
+            var xzArea = PolygonArea(xz);
+            var yzArea = PolygonArea(yz);
+
+            string components = ((xyArea > xzArea) && (xyArea > yzArea)) ? "xy" : ((xzArea > xyArea) && (xzArea > yzArea)) ? "xz" : "yz";
+
+            polygon.CreateVertUVDictionary();
+            double[,] exterior = ListTo2DArray(polygon.bounds, components);
+            polygon.CreateVertDictionary(ListTo2DArray(polygon.verts, components));
+            double[,] bounds = CalculateBounds(exterior);
+            DelaunayClient delaunayClient = new DelaunayClient(bounds, settings: (int)DelaunayClient.Option.REMOVE_EXTERIOR | (int)DelaunayClient.Option.REMOVE_HOLES);
+            delaunayClient.InsertConstrainedPolygon(exterior);
+            foreach (List<double> interior in polygon.interior)
+            {
+                var interiorArray = ListTo2DArray(interior, components);
+                delaunayClient.InsertConstrainedPolygon(interiorArray);
+            }
+            double[,] empty = new double[0, 0];
+            delaunayClient.GatherTriangles(empty, true, out polygon.delaunayVerts, out polygon.delaunayTriangles);
+            polygon.ConvertDelaunay();
+        }
         static void CreateMTLFile(List<ISurfaceDataMember> textures, string path)
         {
             using (StreamWriter sw = File.CreateText(path))

@@ -15,3 +15,6 @@ C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Release\netcoreapp3.1\GMLtoOBJ.dll
 C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Release\netcoreapp3.1\GMLtoOBJ.pdb
 C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Release\netcoreapp3.1\GMLtoOBJ.Properties.Resources.resources
 C:\Users\Kyle\source\repos\GMLtoOBJ\obj\Release\netcoreapp3.1\GMLtoOBJ.csproj.GenerateResource.cache
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Release\netcoreapp3.1\NetTopologySuite.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Release\netcoreapp3.1\NetTopologySuite.Features.dll
+C:\Users\Kyle\source\repos\GMLtoOBJ\bin\Release\netcoreapp3.1\NetTopologySuite.IO.ShapeFile.dll
