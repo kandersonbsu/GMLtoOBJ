@@ -2,7 +2,7 @@
   "profiles": {
     "GMLtoOBJ": {
       "commandName": "Project",
-      "commandLineArgs": "2 C:\\Users\\Kyle\\Desktop\\CityGML"
+      "commandLineArgs": "C:\\Users\\Kyle\\Desktop\\CityGML -t 4"
     }
   }
 }

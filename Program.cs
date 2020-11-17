@@ -17,15 +17,14 @@ namespace GMLtoOBJ
         static string PathToFileFolder;
         static string PathToOutputFolder;
         static int BuildingCount;
-        static int numThreads = 0;
+        static int numThreads = 1;
+        static int progress = 0;
         static void Main(string[] args)
         {
-            //args[0] == threads
-            //args[1] == input folder
-            //args[2] == output folder
-            PathToFileFolder = args[1] == null ? "" : args[1];
+            //args[0] == input folder
+            PathToFileFolder = args[0] == null ? "" : args[0];
             var d = Path.GetDirectoryName(PathToFileFolder);
-            PathToOutputFolder = args.Length > 2 ? args[2] : File.Exists(PathToFileFolder) ? Path.GetDirectoryName(PathToFileFolder) + "\\output": PathToFileFolder + "\\output";
+            PathToOutputFolder = Path.GetDirectoryName(PathToFileFolder) + "\\output";
             if (args[0] == null)
             {
                 PrintUsage();
@@ -33,17 +32,28 @@ namespace GMLtoOBJ
             }
             else
             {
-                try
+                for(int i = 1; i < args.Length; ++i)
                 {
-                    int stringparse = int.Parse(args[0]);
-                    numThreads = stringparse;
-                    if (numThreads <= 0)
-                        numThreads = 1;
-                    ThreadPool.SetMaxThreads(numThreads, numThreads);
-                }
-                catch (FormatException)
-                {
-                    Console.WriteLine("Thread argument must be an integer.");
+                    if(args[i] == "-t")
+                    {
+                        try
+                        {
+                            int threads = int.Parse(args[i + 1]);
+                            if (threads <= 0)
+                                threads = 1;
+                            numThreads = threads;
+                        }
+                        catch(Exception e)
+                        {
+                            Console.WriteLine(e.ToString());
+                            PrintUsage();
+                        }
+                    }
+                    if (args[i] == "-o")
+                    {
+                        PathToOutputFolder = args[i + 1];
+                        ++i;
+                    }
                 }
             }
             try
@@ -71,7 +81,10 @@ namespace GMLtoOBJ
         static void PrintUsage()
         {
             Console.Out.WriteLine("CityGML to OBJ Converter.");
-            Console.Out.WriteLine("GMLtoOBJ [Number of threads] [Path to file/folder] [Path to output folder].");
+            Console.Out.WriteLine("GMLtoOBJ [Path to file/folder].");
+            Console.Out.WriteLine("Additional Options");
+            Console.Out.WriteLine("-t [integer] to specify the number of threads to use.");
+            Console.Out.WriteLine("-o [path to folder] to specify the output folder.");
             Console.Out.WriteLine("If no output Folder is specified, the default will create an output folder in the input directory.");
             Console.Out.WriteLine("If no threads are specified, it will default to 1.");
         }
@@ -535,22 +548,53 @@ namespace GMLtoOBJ
             Console.WriteLine("");
             Console.WriteLine("Creating OBJ files from Buildings:");
             int iteration = 1;
-            int progress = 0;
             var progressBar = new ProgressBar();
             //threaded
-            foreach(Building building in buildings)
-            {
-                StartBuildingThread(building, path);
-                ++progress;
+            var splitBuildings = SplitBuildingList(buildings, numThreads);
+            var threadList = new List<Thread>();
+            foreach (List<Building> list in splitBuildings)
+                threadList.Add(StartBuildingListThread(list, path));
+            while(AllThreadsComplete(threadList))
                 progressBar.Report((double)progress / BuildingCount);
-            }
             System.Threading.Thread.Sleep(1000);
             Console.WriteLine();
             var timeSpan = timer.Elapsed;
             Console.WriteLine("Elapsed Time: " + timeSpan.ToString(@"m\:ss\.fff"));
         }
 
-        static Thread StartBuildingThread(Building building, string path)
+        static bool AllThreadsComplete(List<Thread> threads)
+        {
+            foreach(var thread in threads)
+            {
+                if (thread.IsAlive)
+                    return true;
+            }
+            return false;
+        }
+
+        static List<List<Building>> SplitBuildingList(List<Building> buildings, int numLists)
+        {
+            var retVal = new List<List<Building>>();
+            int chunkSize = (buildings.Count / numLists); //The number of buildings in each list
+            for(int i = 0; i < numLists; ++i)
+            {
+                if (i == numLists - 1)
+                    retVal.Add(buildings.GetRange(i * chunkSize, buildings.Count - (chunkSize * i)));
+                else
+                    retVal.Add(buildings.GetRange(i * chunkSize, chunkSize));
+            }
+
+            return retVal;
+        }
+
+        static Thread StartBuildingListThread(List<Building> buildings, string path)
+        {
+            var thread = new Thread(() => WriteBuildingsToOBJ(buildings, path));
+            thread.Start();
+            return thread;
+        }
+
+        static Thread StartBuildingThread(Building building, string path, ref int progress)
         {
             var thread = new Thread(() => WriteBuildingToOBJ(building, path));
             thread.Start();
@@ -563,8 +607,16 @@ namespace GMLtoOBJ
             thread.Start();
             return thread;
         }
+
+        static void WriteBuildingsToOBJ(List<Building> buildings, string path)
+        {
+            foreach (Building b in buildings)
+                WriteBuildingToOBJ(b, path);
+        }
         static void WriteBuildingToOBJ(Building building, string path)
         {
+            //var thread = Thread.CurrentThread;
+            //Console.WriteLine("Starting Thread {0}", thread.ManagedThreadId);
             building.CreateSideUVs();
             if (building.needsCoordinateTransform)
             {
@@ -576,7 +628,6 @@ namespace GMLtoOBJ
             }
             foreach (Polygon polygon in building.sides)
             {
-                StartPolygonThread(polygon);
                 var xy = TwoDimensionalPolygon(polygon, "xy");
                 var xz = TwoDimensionalPolygon(polygon, "xz");
                 var yz = TwoDimensionalPolygon(polygon, "yz");
@@ -601,7 +652,7 @@ namespace GMLtoOBJ
                 double[,] empty = new double[0, 0];
                 delaunayClient.GatherTriangles(empty, true, out polygon.delaunayVerts, out polygon.delaunayTriangles);
                 polygon.ConvertDelaunay();
-
+                delaunayClient.Release();
             }
             string filename = Path.GetFileName(path);
             var filenameNoExtension = filename.Replace(".gml", "");
@@ -662,6 +713,7 @@ namespace GMLtoOBJ
                     sw.WriteLine();
                 }
             }
+            ++progress;
         }
 
         static void TriangulatePolygon(Polygon polygon)
